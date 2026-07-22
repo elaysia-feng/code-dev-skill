@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "entries": {
+    "79a93d4a2f8f50b95f852280616242fee1855dc99a3c75211917f55e72e95fae": {
+      "last_emitted_at_ms": 1784763427985,
+      "message": "Use parallel execution for independent tasks. Use run_in_background for long operations (npm install, builds, tests)."
+    },
+    "459c54e5f35d6a58dcd90d2aecc21fa6d1f35d241bc5b134c506f87dc7b6d67b": {
+      "last_emitted_at_ms": 1784763002119,
+      "message": "Combine searches in parallel when investigating multiple patterns."
+    },
+    "466399dafa2d20f60587180bad0a07358eb7f2bce724df0ff682f038ad33f5ad": {
+      "last_emitted_at_ms": 1784762673278,
+      "message": "Read multiple files in parallel when possible for faster analysis."
+    },
+    "80d6fb4df1b6b10d92d4a1ca39efde3143130fd7e34c5574a0cf803b78032f5f": {
+      "last_emitted_at_ms": 1784762616103,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) | Task: Audit readability-first-coding skill"
+    },
+    "445ed27a3872b681d98190bae61ccb84954e1bc4e140df5370be958dee776b3a": {
+      "last_emitted_at_ms": 1784762084215,
+      "message": "Verify changes work after editing. Test functionality before marking complete."
+    },
+    "a4423238c5396f89c00bc3fd6bae43ec24214f3fb4290ddc5ab2c02bd1edbbb4": {
+      "last_emitted_at_ms": 1784761582841,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Team-E: Java detectors + full coverage"
+    },
+    "ea37d8f85880066f5592aba7a0c5e84945fb7acc9035c15ebdfd184364ab0294": {
+      "last_emitted_at_ms": 1784761581070,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Team-D: Python pass-through + ABC detectors"
+    },
+    "cdb2a449a979445e44627dec80e39501f4db419300a567f670f4b0d817107abc": {
+      "last_emitted_at_ms": 1784761579214,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Team-C: Shell script + assets + evals"
+    },
+    "b8b13bb259f5ac74b943c213786bbd6656d57c2f814f96bac94cf78860955956": {
+      "last_emitted_at_ms": 1784761577746,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Team-B: check-abstraction-smell.py detectors"
+    },
+    "d3393841f473d5961ac69611781ac548c6c9ec44e96c70d0184e5a6437d0ed04": {
+      "last_emitted_at_ms": 1784761576387,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Team-A: SKILL.md + all 4 references"
+    },
+    "fdf652d17c16f542815157587b20d369b8d443036572306a53376f4f35860f3a": {
+      "last_emitted_at_ms": 1784761407195,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Audit readability-first-coding skill v25"
+    },
+    "0963b79e8a2721049dae97664a82d4dccd88ad7c0a684a097effafb6b4a83152": {
+      "last_emitted_at_ms": 1784760207217,
+      "message": "Spawning agent: oh-my-claudecode:code-reviewer (inherit) [BACKGROUND] | Task: Audit readability-first-coding skill v24"
+    }
+  },
+  "updated_at": "2026-07-22T23:37:07.985Z"
+}
