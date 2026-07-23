@@ -157,24 +157,25 @@ def find_suspect_packages(root: Path) -> list[dict]:
     exclude_dirs = {"node_modules", ".git", "__pycache__", "venv", ".venv",
                     "target", "build", "dist", ".mvn", ".gradle", "egg-info"}
 
-    for suspect in suspect_names:
-        for pkg_dir in root.rglob(suspect):
-            if not pkg_dir.is_dir():
-                continue
-            # Check each path component against exclude list (exact match, not substring)
-            if any(part in exclude_dirs for part in pkg_dir.relative_to(root).parts):
-                continue
+    for pkg_dir in root.rglob("*"):
+        if not pkg_dir.is_dir():
+            continue
+        if pkg_dir.name not in suspect_names:
+            continue
+        # Check each path component against exclude list (exact match, not substring)
+        if any(part in exclude_dirs for part in pkg_dir.relative_to(root).parts):
+            continue
 
-            files = [f for f in pkg_dir.rglob("*") if f.is_file() and f.suffix in (".java", ".py") and not any(p in exclude_dirs for p in f.relative_to(pkg_dir).parts)]
-            if len(files) <= 2:
-                results.append({
-                    "type": "suspect_package",
-                    "severity": "info",
-                    "path": str(pkg_dir.relative_to(root)),
-                    "file_count": len(files),
-                    "files": [str(f.relative_to(root)) for f in files],
-                    "message": f"Package '{pkg_dir.relative_to(root)}' has only {len(files)} file(s). Was this created without explicit user request?"
-                })
+        files = [f for f in pkg_dir.rglob("*") if f.is_file() and f.suffix in (".java", ".py") and not any(p in exclude_dirs for p in f.relative_to(pkg_dir).parts)]
+        if len(files) <= 2:
+            results.append({
+                "type": "suspect_package",
+                "severity": "info",
+                "path": str(pkg_dir.relative_to(root)),
+                "file_count": len(files),
+                "files": [str(f.relative_to(root)) for f in files],
+                "message": f"Package '{pkg_dir.relative_to(root)}' has only {len(files)} file(s). Was this created without explicit user request?"
+            })
 
     return results
 
@@ -258,22 +259,26 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
                 class_files[class_name] = str(f.relative_to(root))
                 extends_graph[class_name] = first_parent.split(".")[-1]
 
-    # Helper: calculate depth by walking up the hierarchy
-    def calc_depth(cls_name: str, visited: set = None) -> int:
-        if visited is None:
-            visited = set()
-        if cls_name in visited:
-            return 0  # cycle detected
-        visited.add(cls_name)
+    # Helper: calculate inheritance depth.  Returns -1 for cyclic chains
+    # so they are never flagged as "deep inheritance".
+    def calc_depth(cls_name: str, visiting: set = None) -> int:
+        if visiting is None:
+            visiting = set()
+        if cls_name in visiting:
+            return -1  # cycle detected — do not report
+        visiting.add(cls_name)
         parent = extends_graph.get(cls_name)
         if parent is None:
             return 0
-        return 1 + calc_depth(parent, visited)
+        child_depth = calc_depth(parent, visiting)
+        if child_depth == -1:
+            return -1  # propagate cycle marker
+        return 1 + child_depth
 
-    # Second pass: report classes with depth >= max_depth
+    # Second pass: report classes with depth >= max_depth (skip cycles)
     for class_name, file_path in class_files.items():
         depth = calc_depth(class_name)
-        if depth >= max_depth:
+        if depth >= max_depth and depth != -1:
             # Build the chain for reporting
             chain = [class_name]
             current = class_name
@@ -318,12 +323,14 @@ def find_pass_through_methods(root: Path) -> list[dict]:
             if line.startswith('//') or line.startswith('/*') or line.startswith('*'):
                 i += 1
                 continue
-            # Skip annotation-only lines (no access-modifier keyword on same line)
-            if line.startswith('@') and not re.search(r'\b(public|private|protected)\b', line):
+            # Skip annotation-only lines (no method-like keyword on same line).
+            # After making the modifier optional below, we must also let through
+            # lines that start with a return-type + method-name without a modifier.
+            if line.startswith('@') and not re.search(r'\b(public|private|protected|default|static|void|int|boolean|long|double|float|byte|short|char|String)\b', line):
                 i += 1
                 continue
             m = re.search(
-                r'(?:public|private|protected|default)\s+'
+                r'(?:(?:public|private|protected|default)\s+)?'  # access modifier or interface default (optional — package-private methods have none)
                 r'(?:static\s+)?'
                 r'(?:<[^<>]*>\s+)?'            # optional generic type param (simplified; nested generics unsupported)
                 r'(.+)'                     # return type (greedily match incl. generics with spaces)
@@ -584,9 +591,12 @@ def find_python_pass_through(root: Path) -> list[dict]:
                     continue  # single-line function, body already checked
                 # after_colon was purely a comment — fall through to body collection
             # Collect the body until dedent (track triple-quote state to avoid
-            # false dedent on unindented """ inside a multi-line string)
+            # false dedent on unindented """ inside a multi-line string).
+            # Track WHICH quote type opened the region — a """ docstring that
+            # contains ''' in its body text must not be closed by the embedded
+            # single-quote variant, and vice versa.
             body_lines = []
-            in_triple = False
+            triple_type = None  # None | '"""' | "'''"
             j = sig_end_i + 1
             while j < len(lines):
                 line_j = lines[j]
@@ -594,25 +604,30 @@ def find_python_pass_through(root: Path) -> list[dict]:
                 if stripped_j == '':
                     j += 1
                     continue  # skip blank lines within function body
-                # Toggle triple-quote state. An odd count of triple-quote markers
-                # flips the in_triple flag; handles """ or ''' appearing anywhere
-                # on the line, not only at the start.
                 dq_count = stripped_j.count('"""')
                 sq_count = stripped_j.count("'''")
-                if in_triple:
-                    if (dq_count + sq_count) % 2 == 1:
-                        in_triple = False
-                    j += 1
-                    continue
-                else:
+                if triple_type is None:
+                    # Outside a triple-quoted string — an odd count of either
+                    # marker opens a region of that type.
                     if dq_count % 2 == 1:
-                        in_triple = True
+                        triple_type = '"""'
                         j += 1
                         continue
                     if sq_count % 2 == 1:
-                        in_triple = True
+                        triple_type = "'''"
                         j += 1
                         continue
+                else:
+                    # Inside a triple-quoted string — only the matching quote
+                    # type can close it; the other type is just body content.
+                    if triple_type == '"""':
+                        if dq_count % 2 == 1:
+                            triple_type = None
+                    else:  # triple_type == "'''"
+                        if sq_count % 2 == 1:
+                            triple_type = None
+                    j += 1
+                    continue
                 if stripped_j.startswith('@'):
                     break  # decorator on next method
                 current_indent = len(line_j) - len(line_j.lstrip())
@@ -715,4 +730,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"Error: unexpected failure in abstraction smell checker: {e}", file=sys.stderr)
+        sys.exit(2)

@@ -151,3 +151,50 @@ class OrderService:
 ```
 
 **Why correct:** One class, all logic visible, no inheritance or interface indirection.
+
+### Incorrect: Python Pass-Through Wrapper
+
+```python
+# order_service.py — DO NOT create a wrapper that only delegates
+class OrderService:
+    def cancel_order(self, order_id: int) -> None:
+        return self._order_manager.cancel(order_id)
+```
+
+**Why incorrect:** The `cancel_order` method is a one-line pass-through that adds no logic. The caller could invoke `order_manager.cancel(order_id)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+
+### Incorrect: Deep Inheritance Chain
+
+```python
+# base/handler.py
+class BaseHandler:
+    def handle(self, request):
+        ...
+
+# orders/cancel_handler.py
+class CancelHandler(BaseHandler):
+    def handle(self, request):
+        ...
+
+# orders/express_cancel_handler.py
+class ExpressCancelHandler(CancelHandler):
+    def handle(self, request):
+        ...
+```
+
+**Why incorrect:** A three-level inheritance chain (`ExpressCancelHandler → CancelHandler → BaseHandler`) forces readers to understand all three classes to know what `handle()` actually does. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
+
+### Incorrect: Java Deep Inheritance Chain
+
+```java
+// BaseEntity.java
+public abstract class BaseEntity { ... }
+
+// BaseOrderEntity.java
+public abstract class BaseOrderEntity extends BaseEntity { ... }
+
+// ExpressOrderEntity.java
+public class ExpressOrderEntity extends BaseOrderEntity { ... }
+```
+
+**Why incorrect:** Three levels of inheritance for an entity class bury the actual fields across multiple files. Prefer a single concrete entity class unless the hierarchy was explicitly requested.

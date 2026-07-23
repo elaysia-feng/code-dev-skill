@@ -29,12 +29,13 @@ else
 fi
 
 if [ ! -f "$CHECKER" ]; then
-    # Fallback: search upward from repo root for the skill directory
-    # Look for the checker relative to common install locations
+    # Fallback: search from repo root for the skill directory.
+    # Look for the checker relative to common install locations.
+    # When installed as a git hook, BASH_SOURCE resolves to .git/hooks/,
+    # so the primary path is the new top-level location.
     for candidate in \
+        "$PROJECT_ROOT/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
         "$PROJECT_ROOT/.omc/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$PROJECT_ROOT/scripts/check-abstraction-smell.py" \
-        "$(dirname "$PROJECT_ROOT")/.omc/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
         ; do
         if [ -f "$candidate" ]; then
             CHECKER="$candidate"
@@ -62,7 +63,8 @@ if [ -z "$CHANGED" ]; then
     exit 0
 fi
 
-FILE_COUNT=$(echo "$CHANGED" | wc -l | tr -d ' ')
+FILE_COUNT=$(echo "$CHANGED" | wc -l)
+FILE_COUNT="${FILE_COUNT//[[:space:]]/}"
 echo "[readability-first] Checking staged files for abstraction smells..."
 if [ "$FILE_COUNT" -eq 1 ]; then
     echo "[readability-first] Files: 1 staged Java/Python file"
@@ -78,7 +80,7 @@ fi
 #   * - unexpected error (treat as blocker for safety)
 if [ -f "$CHECKER" ]; then
     CHECK_RESULT=0
-    $PYTHON "$CHECKER" "$PROJECT_ROOT" --lang auto || CHECK_RESULT=$?
+    "$PYTHON" "$CHECKER" "$PROJECT_ROOT" --lang auto || CHECK_RESULT=$?
 
     if [ "$CHECK_RESULT" -eq 0 ]; then
         echo "[readability-first] Passed - no abstraction smells detected."

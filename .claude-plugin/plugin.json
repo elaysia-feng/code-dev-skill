@@ -1,0 +1,22 @@
+{
+  "name": "readability-first-coding",
+  "version": "1.0.0",
+  "description": "Prioritize readable and direct code. Avoid unsolicited abstractions — duplicated business logic stays duplicated unless the user explicitly requests extraction.",
+  "author": {
+    "name": "elaysia-feng"
+  },
+  "repository": "https://github.com/elaysia-feng/code-dev-skill",
+  "homepage": "https://github.com/elaysia-feng/code-dev-skill",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "readability",
+    "code-style",
+    "java",
+    "python"
+  ],
+  "skills": [
+    "./skills/readability-first-coding/"
+  ]
+}

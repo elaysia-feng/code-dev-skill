@@ -1,0 +1,197 @@
+[
+  {
+    "query": "帮我实现一个订单创建接口",
+    "should_trigger": false,
+    "reason": "Generic implementation task — '实现接口' trigger was removed as too broad. No remaining trigger phrase matches this query."
+  },
+  {
+    "query": "重构一下这个 Java Service，把重复代码抽出来",
+    "should_trigger": false,
+    "reason": "Refactoring task — '重构' trigger was removed as too broad. '抽取公共' does not match this query (公共 not present). No remaining trigger matches."
+  },
+  {
+    "query": "写一个用户登录的 controller",
+    "should_trigger": false,
+    "reason": "Generic coding task — no readability-first trigger phrase is present. Skill description covers backend code, but trigger matching is keyword-based and this query contains no matching trigger."
+  },
+  {
+    "query": "review 一下这段代码有没有不必要的抽象",
+    "should_trigger": false,
+    "reason": "Code review question — no readability-first trigger phrase matches. '不要抽象' is not a substring of '不必要的抽象'. Skill description covers this domain but trigger matching is keyword-based."
+  },
+  {
+    "query": "实现一个商品列表查询功能",
+    "should_trigger": false,
+    "reason": "Generic feature implementation — no readability-first trigger phrase is present. Skill description covers this domain, but trigger matching is keyword-based and this query contains no matching trigger."
+  },
+  {
+    "query": "帮我修改 OrderService 里的取消逻辑",
+    "should_trigger": false,
+    "reason": "Generic code modification — no readability-first trigger phrase is present. Skill description covers backend code, but trigger matching is keyword-based and this query contains no matching trigger."
+  },
+  {
+    "query": "这个项目要不要加一个 common 模块放公共代码？",
+    "should_trigger": false,
+    "reason": "Architecture decision involving shared modules — but no trigger phrase matches. The query contains 'common 模块' (with space), while trigger 'common模块' has no space. Triggers are exact substring matches only."
+  },
+  {
+    "query": "写代码的时候注意可读性，不要过度设计",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match."
+  },
+  {
+    "query": "用 Python 写一个取消订单的 service",
+    "should_trigger": false,
+    "reason": "Generic Python backend task — '写service' trigger was removed as too broad. No remaining trigger phrase matches this query."
+  },
+  {
+    "query": "写个 Flask API 处理用户注册，要有参数校验",
+    "should_trigger": false,
+    "reason": "Generic Python web API task — no readability-first trigger phrase matches. Skill description covers this domain, but trigger matching is keyword-based."
+  },
+  {
+    "query": "Implement a cancel order endpoint with status validation",
+    "should_trigger": false,
+    "reason": "Generic English implementation task — no readability-first trigger phrase is present. Skill description covers backend code, but triggers are keyword-based."
+  },
+  {
+    "query": "Create a ProductService class to query products",
+    "should_trigger": false,
+    "reason": "Generic English class creation — no readability-first trigger phrase matches. Skill description covers this, but trigger matching is keyword-based."
+  },
+  {
+    "query": "Refactor this: extract the duplicated validation logic into a shared validator",
+    "should_trigger": false,
+    "reason": "English refactoring request — no readability-first trigger phrase matches. User is explicitly asking to extract, but the skill needs a trigger keyword to activate."
+  },
+  {
+    "query": "实现一个接口来管理用户权限",
+    "should_trigger": false,
+    "reason": "Ambiguous query but no readability-first trigger phrase matches. '实现接口' trigger was removed as too broad. Without a matching trigger, the skill won't activate — the model should handle disambiguation on its own."
+  },
+  {
+    "query": "帮我把这些公共的 DTO 放到 common 包里",
+    "should_trigger": false,
+    "reason": "User requesting common package creation. '公共模块' and 'common模块' don't match this query (trigger is '模块' not '包'). However, the user IS explicitly asking for extraction — the skill's When Extraction IS Requested section applies if activated by other means."
+  },
+  {
+    "query": "写代码的时候易读懂优先，不要搞得太复杂",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 易读懂优先."
+  },
+  {
+    "query": "这几个类里有重复的校验逻辑，但是不要抽取，保持原样",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 不要抽取 and 保持重复."
+  },
+  {
+    "query": "不要抽象，直接写实现类就行",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 不要抽象."
+  },
+  {
+    "query": "这段代码不要DRY，重复就重复了",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 不要DRY."
+  },
+  {
+    "query": "不要创建公共模块，每个模块自己管自己的",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 不要公共模块."
+  },
+  {
+    "query": "遵循代码规范，但不要过度设计",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 不要过度设计."
+  },
+  {
+    "query": "帮我把这两个 service 里的重复方法抽取公共",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 抽取公共. User explicitly requesting extraction."
+  },
+  {
+    "query": "写一个 UserService 来处理用户相关的业务逻辑",
+    "should_trigger": false,
+    "reason": "Generic service implementation — '写service' trigger was removed as too broad. No remaining trigger matches this query."
+  },
+  {
+    "query": "用 Java 写一个商品管理的 service 层",
+    "should_trigger": false,
+    "reason": "Generic Java service implementation — '写service' trigger was removed as too broad. No remaining trigger phrase matches this query."
+  },
+  {
+    "query": "解释什么是 Java 多态",
+    "should_trigger": false,
+    "reason": "Educational question, not a coding task."
+  },
+  {
+    "query": "查询一下今天北京的天气",
+    "should_trigger": false,
+    "reason": "Completely unrelated to coding."
+  },
+  {
+    "query": "帮我写一封英文邮件",
+    "should_trigger": false,
+    "reason": "Writing task, not code implementation."
+  },
+  {
+    "query": "git log 怎么查看最近 10 条记录",
+    "should_trigger": false,
+    "reason": "CLI help question, not coding."
+  },
+  {
+    "query": "分析一下这个 CSV 数据",
+    "should_trigger": false,
+    "reason": "Data analysis, not backend code implementation."
+  },
+  {
+    "query": "这个 SQL 查询怎么优化",
+    "should_trigger": false,
+    "reason": "SQL optimization question — not about abstraction/code structure."
+  },
+  {
+    "query": "用 Python 写个快排",
+    "should_trigger": false,
+    "reason": "Algorithm exercise — readability-first coding is about application/business code structure, not algorithm implementation."
+  },
+  {
+    "query": "npm install 报错了怎么解决",
+    "should_trigger": false,
+    "reason": "Tooling/debugging question — not code implementation."
+  },
+  {
+    "query": "What is the DRY principle in software engineering?",
+    "should_trigger": false,
+    "reason": "Educational/definition question — not asking to write or refactor code."
+  },
+  {
+    "query": "Explain the Interface Segregation Principle with examples",
+    "should_trigger": false,
+    "reason": "Concept explanation — not asking to implement or modify code."
+  },
+  {
+    "query": "How do I use Optional in Java to avoid null checks?",
+    "should_trigger": false,
+    "reason": "API usage question — code-adjacent but not about application structure or abstraction."
+  },
+  {
+    "query": "What does @Service annotation do in Spring Boot?",
+    "should_trigger": false,
+    "reason": "Framework documentation question — not a code implementation request."
+  },
+  {
+    "query": "Show me an example of a Spring Boot controller",
+    "should_trigger": false,
+    "reason": "Example/learning request — user wants to see an example, not build a feature. Skill could trigger but behavior mode is different."
+  },
+  {
+    "query": "帮我看看这段代码为什么报 NullPointerException",
+    "should_trigger": false,
+    "reason": "Debugging question — focused on runtime error, not code structure or abstraction."
+  },
+  {
+    "query": "这两个类有重复代码，直接复制粘贴可以吗？",
+    "should_trigger": false,
+    "reason": "User asking whether duplication is acceptable — conceptually within skill scope, but no trigger phrase matches this query. Skill won't activate without a matching keyword."
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "readability-first-coding",
+  "description": "Readability-first coding skill for Java and Python backends — keeps code direct, avoids unnecessary abstractions.",
+  "version": "1.0.0",
+  "owner": {
+    "name": "elaysia-feng",
+    "email": ""
+  },
+  "plugins": [
+    {
+      "name": "readability-first-coding",
+      "description": "Prioritize readable and direct code over unsolicited abstractions. Supports Java and Python backend development.",
+      "version": "1.0.0",
+      "author": {
+        "name": "elaysia-feng"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/elaysia-feng/code-dev-skill",
+      "tags": ["readability", "java", "python", "code-style", "backend"]
+    }
+  ]
+}

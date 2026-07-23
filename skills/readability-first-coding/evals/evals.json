@@ -66,6 +66,26 @@
       "id": 13,
       "prompt": "整理一下项目结构，把 DTO 都放到 dto 包下面。",
       "expected_output": "用户明确要求重组目录 → 执行移动操作。但不顺便创建 common 包、不添加 base DTO、不引入任何新的模块或抽象。只做用户要求的目录重组。"
+    },
+    {
+      "id": 14,
+      "prompt": "用 Python 写一个 FastAPI endpoint 处理用户登录，校验 username 和 password 不能为空。",
+      "expected_output": "创建 route 函数，校验逻辑直接写在函数体内。不创建 LoginUseCase、AuthService interface、或 PasswordValidator 工具类。使用 Pydantic model 进行请求体校验，逻辑从上到下可读。"
+    },
+    {
+      "id": 15,
+      "prompt": "Python 项目里 OrderService 和 ProductService 都有 find_by_id 和 save 方法，帮我提取公共代码。",
+      "expected_output": "用户明确要求提取 → 执行。但只提取用户指定的 find_by_id 和 save，不顺便创建 BaseService ABC 或引入 repository 模式（除非项目已有）。提取后的代码保持直接可读。"
+    },
+    {
+      "id": 16,
+      "prompt": "这个 Python 类用了三层继承 A → B → C，帮我看看能不能简化。",
+      "expected_output": "识别并报告深层继承链。建议扁平化为 1-2 层，除非用户明确需要此层次结构。简化方案不引入新的 ABC 或 mixin。"
+    },
+    {
+      "id": 17,
+      "prompt": "Python service 里有一个方法只是简单调用了另一个方法，没有额外逻辑，合理吗？",
+      "expected_output": "识别为 pass-through 方法。建议内联到调用处，删除该包装方法。不创建新的抽象层来'修复'这个问题。"
     }
   ]
 }

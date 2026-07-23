@@ -4,6 +4,7 @@ description: >-
   Use this skill when implementing, modifying, reviewing, or refactoring Java or Python backend code.
   Prioritize readable and direct code, avoid unsolicited abstractions, and preserve duplicated business
   logic unless the user explicitly requests extraction or reuse.
+model: sonnet
 triggers:
   - 可读性优先
   - 易读懂优先
@@ -13,21 +14,12 @@ triggers:
   - 不要公共模块
   - 保持重复
   - readability first
-  - 写代码
-  - 实现功能
   - 不要过度设计
-  - 代码规范
-  - 实现接口
-  - 重构
-  - review代码
-  - 修改service
-  - 写controller
-  - 写service
   - 抽取公共
   - common模块
   - 公共模块
-argument-hint: "[optional: Java | Python | Java microservices]"
-allowed-tools: Read,Write,Edit,Glob,Grep
+argument-hint: "[project language or context, e.g. Java, Python, or Java microservices]"
+allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent,LSP
 license: MIT
 ---
 
@@ -76,7 +68,7 @@ If the answer is **No** → do not extract. No matter how many times the code re
 | Directory layout | `references/project-structure.md` |
 | Good/Bad examples | `references/examples.md` |
 
-Load the relevant reference when starting work in that language or context.
+When starting work in a supported language, use Read to load the corresponding reference file before implementing code — this ensures the language-specific guidelines are in context.
 
 # Agent Workflow
 
@@ -92,6 +84,8 @@ When receiving a development task:
 8. Do not propose complex alternatives unless the task genuinely demands them.
 9. Only analyze shared logic when the user explicitly requests refactoring.
 10. Confirm the final code is easy to read top-to-bottom.
+
+**Existing project conventions:** If the project already consistently uses interface+impl, abstract base classes, or other abstraction patterns, follow that convention — do not break consistency. Readability-first principles take precedence for new code and new modules, and in areas where the existing convention is inconsistent or absent.
 
 # Code Writing Rules
 
@@ -145,15 +139,15 @@ Only extract what the user specified. Do not "also add" extra framework classes.
 
 | Script | Purpose |
 |---|---|
-| `scripts/check-abstraction-smell.py` | Scan project for over-abstraction smells (single-impl interfaces, suspect packages, pass-through methods, deep inheritance, single-impl ABCs, Python pass-throughs) |
-| `scripts/pre-commit-check.sh` | Git pre-commit hook that runs the smell checker against staged Java/Python files |
+| `scripts/check-abstraction-smell.py` | Scan project for over-abstraction smells (single-impl interfaces, suspect packages, pass-through methods, deep inheritance, single-impl ABCs, Python pass-throughs). **Best-effort only:** uses regex-based parsing and may miss edge cases (multiline generics, annotations spanning lines, complex nested structures). **Designed for new/greenfield projects.** On legacy projects with existing abstractions, expect high noise — use `--json` output and filter results to files touched in the current change. |
+| `scripts/pre-commit-check.sh` | Git pre-commit hook that runs the smell checker against staged Java/Python files. On legacy projects, consider skipping the hook or filtering its output to changed lines only. |
 
 Run before committing:
 
 ```bash
-python3 .omc/skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
-python3 .omc/skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
-python3 .omc/skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java --json  # machine-readable
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java --json  # machine-readable
 ```
 
 If `python3` is not available, `python` (without the 3) usually works as well.
@@ -161,7 +155,7 @@ If `python3` is not available, `python` (without the 3) usually works as well.
 Install as git hook:
 
 ```bash
-cp .omc/skills/readability-first-coding/scripts/pre-commit-check.sh .git/hooks/pre-commit
+cp skills/readability-first-coding/scripts/pre-commit-check.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
@@ -185,8 +179,15 @@ Before completing any task:
 
 **If an abstraction reduces readability, delete the abstraction and restore direct code.**
 
-# Core Rule (Repeated)
+# Test Code
+
+Test code follows the same readability-first principles but with a lower bar for extraction:
+
+- Shared fixtures, base test classes, and test helpers are acceptable when they reduce boilerplate without obscuring the test's intent.
+- A reader should still understand what a test does by reading the test method alone — avoid deep inheritance chains in test classes.
+- `setUp()` / `@BeforeEach` is fine for common arrangement; keep it limited to what every test in the class genuinely needs.
+- If a shared test utility makes individual tests harder to follow, inline it.
+
+# Core Rule
 
 > **Unless the user explicitly requests it, never extract shared methods, utility classes, parent classes, or shared modules — no matter how many times the code repeats.**
->
-> **Easy to understand > Directness > Easy to modify > Less duplication > Reusability > Abstraction > Architectural beauty.**

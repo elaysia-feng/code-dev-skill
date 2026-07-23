@@ -54,7 +54,7 @@ src/app
 │   ├── request
 │   └── response
 ├── service
-├── mapper
+├── repository
 ├── entity
 ├── config
 └── main.py
@@ -64,4 +64,8 @@ src/app
 
 Application entry point. Creates and wires the application, starts the server.
 
-Same principles as Java — the directory structure organizes code by its role in the application (controller, service, mapper, entity), not by abstract design-layer patterns (interface/impl, domain/infrastructure, strategy/factory).
+### repository
+
+Data access layer (equivalent to Java's `mapper`). Database queries and persistence logic.
+
+Same principles as Java — the directory structure organizes code by its role in the application (controller, service, repository, entity), not by abstract design-layer patterns (interface/impl, domain/infrastructure, strategy/factory).

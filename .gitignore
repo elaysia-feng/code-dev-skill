@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+
+# OMC runtime state
+.omc/
+.claude/
+# Node / npm
+node_modules/
+npm-debug.log*
