@@ -17,9 +17,10 @@ triggers:
   - 不要过度设计
   - 抽取公共
   - common模块
+  - common 模块
   - 公共模块
 argument-hint: "[project language or context, e.g. Java, Python, or Java microservices]"
-allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent,LSP
+allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent
 license: MIT
 ---
 
@@ -62,11 +63,11 @@ If the answer is **No** → do not extract. No matter how many times the code re
 
 | Language / Context | Reference File |
 |---|---|
-| Java backend | `references/java-guidelines.md` |
-| Python backend | `references/python-guidelines.md` |
-| Java microservices | `references/microservice-guidelines.md` |
-| Directory layout | `references/project-structure.md` |
-| Good/Bad examples | `references/examples.md` |
+| Java backend | `skills/readability-first-coding/references/java-guidelines.md` |
+| Python backend | `skills/readability-first-coding/references/python-guidelines.md` |
+| Java microservices | `skills/readability-first-coding/references/microservice-guidelines.md` |
+| Directory layout | `skills/readability-first-coding/references/project-structure.md` |
+| Good/Bad examples | `skills/readability-first-coding/references/examples.md` |
 
 When starting work in a supported language, use Read to load the corresponding reference file before implementing code — this ensures the language-specific guidelines are in context.
 
@@ -169,9 +170,9 @@ chmod +x .git/hooks/pre-commit
 
 Before completing any task:
 
-- [ ] Did I create a shared method just to reduce duplication? → If yes, inline it back.
+- [ ] Did I create a shared method just to reduce duplication? → If yes, inline it back. **(Test code exempt — shared fixtures, base test classes, and test helpers are acceptable.)**
 - [ ] Did I create a `common`, `util`, `utils`, `shared`, `core`, `framework`, or `base` module the user did not ask for? → If yes, delete it.
-- [ ] Did I add unnecessary parent classes or interfaces? → If yes, delete them.
+- [ ] Did I add unnecessary parent classes or interfaces? → If yes, delete them. **(Test code exempt — base test classes are acceptable.)**
 - [ ] Does understanding simple logic require jumping across multiple files? → If yes, inline.
 - [ ] Did I modify unrelated code? → If yes, revert.
 - [ ] Did I use a more complex approach than the task requires? → If yes, simplify.

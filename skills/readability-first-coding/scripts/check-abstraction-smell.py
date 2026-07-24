@@ -54,7 +54,7 @@ def find_single_impl_interfaces(root: Path) -> list[dict]:
     for f in java_files:
         try:
             content = f.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
 
         # Detect interface and implementation declarations (line-by-line with
@@ -85,7 +85,7 @@ def find_single_impl_interfaces(root: Path) -> list[dict]:
                     interfaces[iface_match.group(1)] = str(f.relative_to(root))
 
             # Detect class/record/enum declarations that implement interfaces
-            m = re.search(r'\b(?:class|record|enum)\s+(\w+)(?:(?!\b(?:class|record|enum)\b).)*\bimplements\s+(.+)', line)
+            m = re.search(r'\b(?:class|record|enum)\s+(\w+)(?:(?!\b(?:class|record|enum|interface)\b).)*\bimplements\s+(.+)', line)
             if not m:
                 # Peek ahead ≤2 lines for multi-line declarations
                 class_decl = re.search(r'\b(?:class|record|enum)\s+(\w+)', line)
@@ -96,7 +96,8 @@ def find_single_impl_interfaces(root: Path) -> list[dict]:
                         nl = lines[j].strip()
                         # Strip block comments first so '/* ... */ code' is not skipped
                         nl_nc = re.sub(r'/\*.*?\*/', '', nl).strip()
-                        if nl_nc.startswith('//') or nl_nc.startswith('/*') or nl_nc.startswith('*'):
+                        nl_nc = re.sub(r'//.*$', '', nl_nc).strip()
+                        if nl_nc.startswith('/*') or nl_nc.startswith('*'):
                             j += 1; continue
                         if nl_nc.startswith('@'):
                             j += 1; continue
@@ -105,7 +106,7 @@ def find_single_impl_interfaces(root: Path) -> list[dict]:
                         combined += ' ' + nl_nc
                         if 'implements' in nl_nc:
                             m = re.search(
-                                r'\b(?:class|record|enum)\s+(\w+)(?:(?!\b(?:class|record|enum)\b).)*\bimplements\s+(.+)',
+                                r'\b(?:class|record|enum)\s+(\w+)(?:(?!\b(?:class|record|enum|interface)\b).)*\bimplements\s+(.+)',
                                 combined
                             )
                             break
@@ -190,7 +191,7 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
     for f in root.rglob("*.java"):
         try:
             content = f.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
 
         lines_j = content.split('\n')
@@ -219,14 +220,14 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
                     class_name = class_decl.group(1)
                     class_files[class_name] = str(f.relative_to(root))
                     j = i + 1
-                    combined = stripped
+                    combined = stripped_nc
                     while j < len(lines_j) and j < i + 4:
                         nl = lines_j[j].strip()
                         nl_nc = re.sub(r'/\*.*?\*/', '', nl).strip()
                         if nl_nc == '' or nl_nc.startswith('//') or nl_nc.startswith('/*') or nl_nc.startswith('*') or nl_nc.startswith('@'):
                             j += 1; continue
                         combined += ' ' + nl_nc
-                        if 'extends' in nl_nc:
+                        if 'extends' in combined:
                             clean_combined = _strip_generics(combined)
                             ext_match = re.search(r'\bclass\s+(\w+)(?:\s+extends\s+([\w.]+))?', clean_combined)
                             if ext_match and ext_match.group(2):
@@ -243,8 +244,22 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
     for f in root.rglob("*.py"):
         try:
             content = f.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
+
+        # Strip #-style comments to avoid false matches inside comments/docstrings.
+        # Best-effort: does not handle # inside multi-line strings perfectly.
+        cleaned_py = []
+        for raw_line in content.split('\n'):
+            stripped_ln = raw_line.strip()
+            if stripped_ln.startswith('#'):
+                cleaned_py.append('')
+                continue
+            comment_pos = raw_line.find('#')
+            if comment_pos != -1:
+                raw_line = raw_line[:comment_pos]
+            cleaned_py.append(raw_line)
+        content = '\n'.join(cleaned_py)
 
         for class_start in re.finditer(r'class\s+(\w+)\s*\(', content):
             class_name = class_start.group(1)
@@ -308,7 +323,7 @@ def find_pass_through_methods(root: Path) -> list[dict]:
     for f in root.rglob("*.java"):
         try:
             content = f.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
 
         # Match a Java method, skipping optional annotations above it.
@@ -416,28 +431,34 @@ def find_python_abc_smell(root: Path) -> list[dict]:
     for f in root.rglob("*.py"):
         try:
             content = f.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
 
         rel = str(f.relative_to(root))
 
         # Detect ABC definitions: class X(ABC) or class X(metaclass=ABCMeta)
         for abc_match in re.finditer(
-            r'class\s+(\w+)\s*\((?:.*?\bABC\b.*?|.*?metaclass\s*=\s*(?:abc\.)?ABCMeta.*?)\)',
+            r'^class\s+(\w+)\s*\((?:.*?\bABC\b.*?|.*?metaclass\s*=\s*(?:abc\.)?ABCMeta.*?)\)',
             content,
-            re.DOTALL
+            re.MULTILINE
         ):
             abc_classes[abc_match.group(1)] = rel
 
         # Detect subclasses: use paren-depth matching to handle nested parens in
         # type-hint arguments like class Foo(Generic[Dict[str, int]]).
-        for class_start in re.finditer(r'class\s+(\w+)\s*\(', content):
+        # Strip #-comments from a copy to avoid false class matches in comments.
+        content_cleaned = '\n'.join(
+            (ln[:ln.find('#')] if ln.find('#') != -1 and not ln.strip().startswith('#') else
+             ('' if ln.strip().startswith('#') else ln))
+            for ln in content.split('\n')
+        )
+        for class_start in re.finditer(r'class\s+(\w+)\s*\(', content_cleaned):
             class_name = class_start.group(1)
             paren_pos = class_start.end() - 1  # position of '('
-            close_pos = _find_matching_paren(content, paren_pos)
+            close_pos = _find_matching_paren(content_cleaned, paren_pos)
             if close_pos == -1:
                 continue
-            parents_raw = content[class_start.end():close_pos]
+            parents_raw = content_cleaned[class_start.end():close_pos]
             parents = []
             for p in parents_raw.split(','):
                 p = p.strip()
@@ -521,7 +542,7 @@ def find_python_pass_through(root: Path) -> list[dict]:
     for f in root.rglob("*.py"):
         try:
             content = f.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
 
         rel = str(f.relative_to(root))
@@ -543,7 +564,14 @@ def find_python_pass_through(root: Path) -> list[dict]:
                 # Multi-line signature: accumulate lines until closing paren
                 sig_lines = [line]
                 for k in range(i + 1, len(lines)):
-                    sig_lines.append(lines[k])
+                    # Strip #-comments before appending so that ')' inside
+                    # comments (e.g. 'x: int  # default(val)') does not
+                    # cause _find_matching_paren to return prematurely.
+                    ln = lines[k]
+                    comment_pos = ln.find('#')
+                    if comment_pos != -1:
+                        ln = ln[:comment_pos]
+                    sig_lines.append(ln)
                     combined = '\n'.join(sig_lines)
                     close_idx = _find_matching_paren(combined, paren_start)
                     if close_idx != -1:
@@ -554,7 +582,6 @@ def find_python_pass_through(root: Path) -> list[dict]:
                 sig = '\n'.join(sig_lines)
             else:
                 sig = line
-            params = sig[m.end():close_idx]
             # Check for return type annotation and colon after the closing paren
             rest = sig[close_idx+1:].strip()
             if rest and not rest.startswith(':') and not rest.startswith('->'):
@@ -615,6 +642,13 @@ def find_python_pass_through(root: Path) -> list[dict]:
                         continue
                     if sq_count % 2 == 1:
                         triple_type = "'''"
+                        j += 1
+                        continue
+                    # Single-line triple-quoted string (even count — both open
+                    # and close markers on the same line, e.g. """docstring.""").
+                    # Skip it so docstrings don't pollute body_lines and cause
+                    # false negatives for otherwise single-statement pass-throughs.
+                    if stripped_j.startswith(('"""', "'''", 'r"""', "r'''")):
                         j += 1
                         continue
                 else:

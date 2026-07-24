@@ -9,14 +9,22 @@
 ```java
 // CreateOrderRequest.java
 public void validate() {
-    if (productId == null) throw new IllegalArgumentException("productId is required");
-    if (quantity == null || quantity <= 0) throw new IllegalArgumentException("quantity must be greater than 0");
+    if (productId == null) {
+        throw new IllegalArgumentException("productId is required");
+    }
+    if (quantity == null || quantity <= 0) {
+        throw new IllegalArgumentException("quantity must be greater than 0");
+    }
 }
 
 // UpdateOrderRequest.java
 public void validate() {
-    if (productId == null) throw new IllegalArgumentException("productId is required");
-    if (quantity == null || quantity <= 0) throw new IllegalArgumentException("quantity must be greater than 0");
+    if (productId == null) {
+        throw new IllegalArgumentException("productId is required");
+    }
+    if (quantity == null || quantity <= 0) {
+        throw new IllegalArgumentException("quantity must be greater than 0");
+    }
 }
 ```
 
@@ -184,7 +192,9 @@ class ExpressCancelHandler(CancelHandler):
 
 **Why incorrect:** A three-level inheritance chain (`ExpressCancelHandler → CancelHandler → BaseHandler`) forces readers to understand all three classes to know what `handle()` actually does. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
 
-### Incorrect: Java Deep Inheritance Chain
+---
+
+## Incorrect: Java Deep Inheritance Chain
 
 ```java
 // BaseEntity.java

@@ -79,6 +79,38 @@ When implementing a feature, do **not**:
 
 User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
 
+## Pass-Through Methods
+
+A function or method that only delegates to another callable without adding logic is a pass-through wrapper. Do not create these unless explicitly requested:
+
+```python
+# DO NOT create a wrapper that only delegates
+class OrderService:
+    def cancel_order(self, order_id: int) -> None:
+        return self._order_manager.cancel(order_id)
+```
+
+**Why incorrect:** The caller could invoke `order_manager.cancel(order_id)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+
+## Deep Inheritance Chains
+
+Avoid inheritance chains deeper than 2 levels (grandparent → parent → child). Each additional level forces readers to understand more files to know what a method actually does:
+
+```python
+# DO NOT create deep chains like:
+# ExpressCancelHandler → CancelHandler → BaseHandler
+class BaseHandler:
+    def handle(self, request): ...
+
+class CancelHandler(BaseHandler):
+    def handle(self, request): ...
+
+class ExpressCancelHandler(CancelHandler):
+    def handle(self, request): ...
+```
+
+**Why incorrect:** Three levels force readers to understand all three classes. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
+
 ## When User Requests Extraction
 
 | Shared Content | Location |

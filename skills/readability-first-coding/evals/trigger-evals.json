@@ -31,8 +31,8 @@
   },
   {
     "query": "这个项目要不要加一个 common 模块放公共代码？",
-    "should_trigger": false,
-    "reason": "Architecture decision involving shared modules — but no trigger phrase matches. The query contains 'common 模块' (with space), while trigger 'common模块' has no space. Triggers are exact substring matches only."
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 'common 模块' (with space) is now a trigger alongside 'common模块' (without space)."
   },
   {
     "query": "写代码的时候注意可读性，不要过度设计",

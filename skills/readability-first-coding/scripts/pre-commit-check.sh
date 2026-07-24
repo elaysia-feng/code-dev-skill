@@ -63,7 +63,7 @@ if [ -z "$CHANGED" ]; then
     exit 0
 fi
 
-FILE_COUNT=$(echo "$CHANGED" | wc -l)
+FILE_COUNT=$(printf '%s\n' "$CHANGED" | wc -l)
 FILE_COUNT="${FILE_COUNT//[[:space:]]/}"
 echo "[readability-first] Checking staged files for abstraction smells..."
 if [ "$FILE_COUNT" -eq 1 ]; then
