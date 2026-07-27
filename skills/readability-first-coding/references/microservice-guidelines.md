@@ -1,5 +1,7 @@
 # Java Microservice Guidelines
 
+This file covers microservice-specific conventions. For core readability-first principles and non-microservice defaults, see [SKILL.md](../SKILL.md).
+
 ## Service Organization
 
 ```
@@ -51,7 +53,7 @@ Even if `order-service` and `product-service` both have similar validation or si
 
 ## base-service Rules
 
-If the project structure requires `base-service` to exist, keep it minimal.
+In microservice projects, shared code lives in `base-service` instead of `common/` (see SKILL.md for the non-microservice convention). If the project structure requires `base-service` to exist, keep it minimal.
 
 When the user asks for a unified response wrapper, create only:
 

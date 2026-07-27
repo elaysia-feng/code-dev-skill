@@ -7,7 +7,7 @@
   {
     "query": "重构一下这个 Java Service，把重复代码抽出来",
     "should_trigger": false,
-    "reason": "Refactoring task — '重构' trigger was removed as too broad. '抽取公共' does not match this query (公共 not present). No remaining trigger matches."
+    "reason": "Refactoring task — '重构' trigger was removed as too broad. '抽取公共' does not match this query (公共 not present). No remaining trigger matches. Known gap: user is requesting extraction but no trigger keyword is present."
   },
   {
     "query": "写一个用户登录的 controller",
@@ -193,5 +193,15 @@
     "query": "这两个类有重复代码，直接复制粘贴可以吗？",
     "should_trigger": false,
     "reason": "User asking whether duplication is acceptable — conceptually within skill scope, but no trigger phrase matches this query. Skill won't activate without a matching keyword."
+  },
+  {
+    "query": "写代码的时候可读性优先，不要搞得太复杂",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — 可读性优先."
+  },
+  {
+    "query": "Follow readability first principles when implementing this service",
+    "should_trigger": true,
+    "reason": "Direct trigger phrase match — readability first."
   }
 ]

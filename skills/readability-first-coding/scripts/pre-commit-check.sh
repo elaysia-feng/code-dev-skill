@@ -80,7 +80,7 @@ fi
 #   * - unexpected error (treat as blocker for safety)
 if [ -f "$CHECKER" ]; then
     CHECK_RESULT=0
-    "$PYTHON" "$CHECKER" "$PROJECT_ROOT" --lang auto || CHECK_RESULT=$?
+    "$PYTHON" "$CHECKER" "$PROJECT_ROOT" --lang auto --files "$CHANGED" || CHECK_RESULT=$?
 
     if [ "$CHECK_RESULT" -eq 0 ]; then
         echo "[readability-first] Passed - no abstraction smells detected."
@@ -108,7 +108,8 @@ if [ -f "$CHECKER" ]; then
         exit 1
     fi
 else
-    echo "[readability-first] WARNING: check-abstraction-smell.py not found at: $CHECKER"
-    echo "[readability-first] Skipping abstraction smell check."
-    exit 0
+    echo "[readability-first] ERROR: check-abstraction-smell.py not found at: $CHECKER"
+    echo "[readability-first] Cannot run abstraction smell check — the quality gate is blocked."
+    echo "[readability-first] Install the skill or fix the path to re-enable checks."
+    exit 1
 fi

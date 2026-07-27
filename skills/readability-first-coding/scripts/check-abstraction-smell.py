@@ -33,21 +33,64 @@ def _strip_generics(text: str) -> str:
     Also handles bounded generics: T extends Foo & Bar.
     """
     while True:
-        cleaned = re.sub(r'<[^<>]*>', '', text)
+        # Require at least one word character between < >, and reject content
+        # containing logical operators (&&, ||) which indicates a comparison
+        # expression rather than a generic type parameter.
+        cleaned = re.sub(r'<(?=[^\s>]*\w)(?![^<>]*(?:&&|\|\|))[^<>]*>', '', text)
         if cleaned == text:
             break
         text = cleaned
     return text
 
 
+def _split_comma_aware(text: str) -> list[str]:
+    """Split text by commas, respecting bracket nesting (angle, square, round).
+
+    Handles cases like: Generic[T, U], Dict[str, int], List[Tuple[int, str]]
+    """
+    parts = []
+    depth = 0
+    current = []
+    for ch in text:
+        if ch in ('<', '[', '('):
+            depth += 1
+            current.append(ch)
+        elif ch in ('>', ']', ')'):
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            parts.append(''.join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append(''.join(current))
+    return parts
+
+
+_DEPENDENCY_DIRS = frozenset({
+    "node_modules", ".git", "__pycache__", "venv", ".venv",
+    "target", "build", "dist", ".mvn", ".gradle", "egg-info",
+})
+
+
+def _rglob_filtered(root: Path, pattern: str) -> list[Path]:
+    """Recursively glob for files matching *pattern*, skipping well-known
+    dependency / cache directories to avoid false positives and wasted work."""
+    return [
+        f for f in root.rglob(pattern)
+        if not any(part in _DEPENDENCY_DIRS for part in f.relative_to(root).parts)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Smell detectors
 # ---------------------------------------------------------------------------
 
-def find_single_impl_interfaces(root: Path) -> list[dict]:
+def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None) -> list[dict]:
     """Find interfaces that have exactly one implementation class."""
     results = []
-    java_files = list(root.rglob("*.java"))
+    java_files = file_list if file_list is not None else _rglob_filtered(root, "*.java")
     interfaces = {}
     implementations = defaultdict(set)  # use set to deduplicate
 
@@ -111,6 +154,9 @@ def find_single_impl_interfaces(root: Path) -> list[dict]:
                             )
                             break
                         j += 1
+                    # Skip past lines already consumed by the peek-ahead
+                    if m:
+                        i = j
             if m:
                 iface_list_raw = re.split(r'\s*[{;]', m.group(2))[0]
                 # Strip generics BEFORE splitting on commas so that commas
@@ -150,8 +196,13 @@ def find_single_impl_interfaces(root: Path) -> list[dict]:
     return results
 
 
-def find_suspect_packages(root: Path) -> list[dict]:
-    """Find common/util/shared/base packages that are nearly empty or contain only pass-through code."""
+def find_suspect_packages(root: Path, min_files: int = 2) -> list[dict]:
+    """Find common/util/shared/base packages that are nearly empty or contain only pass-through code.
+
+    A package with <= min_files source files is considered suspect because
+    such small packages often exist without explicit user request and may
+    represent unnecessary abstraction.
+    """
     results = []
     suspect_names = {"common", "util", "utils", "shared", "core", "framework", "base"}
     # Exclusions matched against full path components (exact match)
@@ -168,7 +219,7 @@ def find_suspect_packages(root: Path) -> list[dict]:
             continue
 
         files = [f for f in pkg_dir.rglob("*") if f.is_file() and f.suffix in (".java", ".py") and not any(p in exclude_dirs for p in f.relative_to(pkg_dir).parts)]
-        if len(files) <= 2:
+        if len(files) <= min_files:
             results.append({
                 "type": "suspect_package",
                 "severity": "info",
@@ -181,14 +232,16 @@ def find_suspect_packages(root: Path) -> list[dict]:
     return results
 
 
-def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
+def find_deep_inheritance(root: Path, max_depth: int = 2,
+                           file_list_java: list[Path] | None = None,
+                           file_list_py: list[Path] | None = None) -> list[dict]:
     """Find class inheritance chains deeper than max_depth levels (Java + Python)."""
     results = []
     extends_graph = {}       # class_name -> parent_name
     class_files = {}         # class_name -> file path
 
     # --- Java pass ---
-    for f in root.rglob("*.java"):
+    for f in (file_list_java if file_list_java is not None else _rglob_filtered(root, "*.java")):
         try:
             content = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -241,7 +294,7 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
             i += 1
 
     # --- Python pass ---
-    for f in root.rglob("*.py"):
+    for f in (file_list_py if file_list_py is not None else _rglob_filtered(root, "*.py")):
         try:
             content = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -249,13 +302,15 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
 
         # Strip #-style comments to avoid false matches inside comments/docstrings.
         # Best-effort: does not handle # inside multi-line strings perfectly.
+        # Heuristic: only treat '#' as a comment start when preceded by whitespace
+        # or at line start, to reduce false positives with string literals like x="#foo".
         cleaned_py = []
         for raw_line in content.split('\n'):
             stripped_ln = raw_line.strip()
             if stripped_ln.startswith('#'):
                 cleaned_py.append('')
                 continue
-            comment_pos = raw_line.find('#')
+            comment_pos = raw_line.find(' #')
             if comment_pos != -1:
                 raw_line = raw_line[:comment_pos]
             cleaned_py.append(raw_line)
@@ -268,7 +323,7 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
             if close_pos == -1:
                 continue
             parents_raw = content[class_start.end():close_pos]
-            parents = [p.strip() for p in parents_raw.split(',') if p.strip()]
+            parents = [p.strip() for p in _split_comma_aware(parents_raw) if p.strip()]
             if parents:
                 first_parent = re.sub(r'\[.*\]', '', parents[0]).strip()  # primary base, strip generics
                 class_files[class_name] = str(f.relative_to(root))
@@ -317,10 +372,10 @@ def find_deep_inheritance(root: Path, max_depth: int = 2) -> list[dict]:
     return results
 
 
-def find_pass_through_methods(root: Path) -> list[dict]:
+def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -> list[dict]:
     """Find methods that only delegate to another method with minimal logic (pass-through wrappers)."""
     results = []
-    for f in root.rglob("*.java"):
+    for f in (file_list if file_list is not None else _rglob_filtered(root, "*.java")):
         try:
             content = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -360,7 +415,10 @@ def find_pass_through_methods(root: Path) -> list[dict]:
             # Collect the method body (naive brace counting)
             brace_count = 0
             open_pos = None
-            clean = line.split('//')[0]
+            # Heuristic: only treat '//' as comment start when preceded by space
+            # to reduce false positives with URLs inside strings.
+            comment_pos = line.find(' //')
+            clean = line[:comment_pos] if comment_pos != -1 else line
             if '{' in clean:
                 brace_count = clean.count('{') - clean.count('}')
                 open_pos = clean.index('{')
@@ -374,7 +432,8 @@ def find_pass_through_methods(root: Path) -> list[dict]:
                     if ahead_nc == '' or ahead_nc.startswith('//') or ahead_nc.startswith('/*') or ahead_nc.startswith('*') or ahead_nc.startswith('@'):
                         j += 1
                         continue
-                    clean_ahead = ahead.split('//')[0]
+                    comment_pos_a = ahead.find(' //')
+                    clean_ahead = ahead[:comment_pos_a] if comment_pos_a != -1 else ahead
                     if '{' in clean_ahead:
                         clean = clean_ahead
                         open_pos = clean_ahead.index('{')
@@ -418,7 +477,7 @@ def find_pass_through_methods(root: Path) -> list[dict]:
 # Python-specific detectors
 # ---------------------------------------------------------------------------
 
-def find_python_abc_smell(root: Path) -> list[dict]:
+def find_python_abc_smell(root: Path, file_list: list[Path] | None = None) -> list[dict]:
     """Find ABCs with at most one concrete subclass in the project.
 
     An ABC with a single implementation is the Python equivalent of a
@@ -428,7 +487,7 @@ def find_python_abc_smell(root: Path) -> list[dict]:
     abc_classes = {}          # abc_name -> file_path
     abc_subclasses = defaultdict(set)  # abc_name -> set of subclass file paths
 
-    for f in root.rglob("*.py"):
+    for f in (file_list if file_list is not None else _rglob_filtered(root, "*.py")):
         try:
             content = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -436,10 +495,17 @@ def find_python_abc_smell(root: Path) -> list[dict]:
 
         rel = str(f.relative_to(root))
 
+        # Strip comment-only lines so that '# class Foo(ABC):' is not matched
+        # as a real class definition.
+        content_no_comments = '\n'.join(
+            '' if ln.strip().startswith('#') else ln
+            for ln in content.split('\n')
+        )
+
         # Detect ABC definitions: class X(ABC) or class X(metaclass=ABCMeta)
         for abc_match in re.finditer(
             r'^class\s+(\w+)\s*\((?:.*?\bABC\b.*?|.*?metaclass\s*=\s*(?:abc\.)?ABCMeta.*?)\)',
-            content,
+            content_no_comments,
             re.MULTILINE
         ):
             abc_classes[abc_match.group(1)] = rel
@@ -447,8 +513,9 @@ def find_python_abc_smell(root: Path) -> list[dict]:
         # Detect subclasses: use paren-depth matching to handle nested parens in
         # type-hint arguments like class Foo(Generic[Dict[str, int]]).
         # Strip #-comments from a copy to avoid false class matches in comments.
+        # Heuristic: only treat '#' as comment start when preceded by whitespace.
         content_cleaned = '\n'.join(
-            (ln[:ln.find('#')] if ln.find('#') != -1 and not ln.strip().startswith('#') else
+            (ln[:ln.find(' #')] if ln.find(' #') != -1 and not ln.strip().startswith('#') else
              ('' if ln.strip().startswith('#') else ln))
             for ln in content.split('\n')
         )
@@ -460,7 +527,7 @@ def find_python_abc_smell(root: Path) -> list[dict]:
                 continue
             parents_raw = content_cleaned[class_start.end():close_pos]
             parents = []
-            for p in parents_raw.split(','):
+            for p in _split_comma_aware(parents_raw):
                 p = p.strip()
                 if not p:
                     continue
@@ -536,10 +603,10 @@ def _find_matching_paren(line: str, start: int) -> int:
     return -1
 
 
-def find_python_pass_through(root: Path) -> list[dict]:
+def find_python_pass_through(root: Path, file_list: list[Path] | None = None) -> list[dict]:
     """Find Python functions/methods that only delegate to another callable."""
     results = []
-    for f in root.rglob("*.py"):
+    for f in (file_list if file_list is not None else _rglob_filtered(root, "*.py")):
         try:
             content = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -567,8 +634,9 @@ def find_python_pass_through(root: Path) -> list[dict]:
                     # Strip #-comments before appending so that ')' inside
                     # comments (e.g. 'x: int  # default(val)') does not
                     # cause _find_matching_paren to return prematurely.
+                    # Heuristic: only treat '#' as comment start when preceded by whitespace.
                     ln = lines[k]
-                    comment_pos = ln.find('#')
+                    comment_pos = ln.find(' #')
                     if comment_pos != -1:
                         ln = ln[:comment_pos]
                     sig_lines.append(ln)
@@ -631,8 +699,9 @@ def find_python_pass_through(root: Path) -> list[dict]:
                 if stripped_j == '':
                     j += 1
                     continue  # skip blank lines within function body
-                dq_count = stripped_j.count('"""')
-                sq_count = stripped_j.count("'''")
+                # Count exact triple-quote boundaries (not part of 4+ consecutive quotes)
+                dq_count = len(re.findall(r'(?<!")"""(?!")', stripped_j))
+                sq_count = len(re.findall(r"(?<!')'''(?!')", stripped_j))
                 if triple_type is None:
                     # Outside a triple-quoted string — an odd count of either
                     # marker opens a region of that type.
@@ -648,7 +717,7 @@ def find_python_pass_through(root: Path) -> list[dict]:
                     # and close markers on the same line, e.g. """docstring.""").
                     # Skip it so docstrings don't pollute body_lines and cause
                     # false negatives for otherwise single-statement pass-throughs.
-                    if stripped_j.startswith(('"""', "'''", 'r"""', "r'''")):
+                    if stripped_j.startswith(('"""', "'''", 'r"""', "r'''", 'f"""', "f'''", 'b"""', "b'''", 'u"""', "u'''", 'rb"""', "rb'''")):
                         j += 1
                         continue
                 else:
@@ -662,15 +731,25 @@ def find_python_pass_through(root: Path) -> list[dict]:
                             triple_type = None
                     j += 1
                     continue
-                if stripped_j.startswith('@'):
-                    break  # decorator on next method
                 current_indent = len(line_j) - len(line_j.lstrip())
                 if current_indent <= def_indent and stripped_j:
                     break  # dedented — next top-level or peer statement
+                if stripped_j.startswith('@') and current_indent <= def_indent:
+                    break  # decorator on next peer method (not inside nested scope)
                 body_lines.append(line_j.strip())
                 j += 1
-            # Filter out comments and blanks
-            code_lines = [l for l in body_lines if l and not l.startswith('#')]
+            # Filter out comments and blanks; strip inline comments first
+            # so that 'return foo.bar()  # delegate' is recognised as code.
+            stripped_body = []
+            for l in body_lines:
+                if not l:
+                    continue
+                comment_pos = l.find(' #')
+                if comment_pos != -1:
+                    l = l[:comment_pos].strip()
+                if l and not l.startswith('#'):
+                    stripped_body.append(l)
+            code_lines = stripped_body
             if len(code_lines) == 1 and re.match(r'^return\s+(?:await\s+)?\w+(?:\.\w+)+\(', code_lines[0]):
                 results.append({
                     "type": "python_pass_through",
@@ -722,6 +801,12 @@ def main():
     parser.add_argument("--max-depth", type=int, default=2,
                         help="Maximum inheritance depth before flagging (default: 2)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--min-package-files", type=int, default=2,
+                        help="Max files in a suspect package before it is flagged (default: 2)")
+    parser.add_argument("--files", nargs="?", const="-", default=None,
+                        help="Analyze specific files instead of rglob. "
+                             "Pass newline-separated paths as an argument, "
+                             "or use '--files' (no value) / '--files -' to read from stdin.")
     args = parser.parse_args()
 
     root = args.root.resolve()
@@ -733,25 +818,56 @@ def main():
     max_depth = args.max_depth
     smells = []
 
+    # --- Resolve explicit file list (if --files was provided) ---
+    file_list_java: list[Path] | None = None
+    file_list_py: list[Path] | None = None
+
+    if args.files is not None:
+        # Read from argument string or stdin
+        if args.files == "-":
+            raw = sys.stdin.read()
+        else:
+            raw = args.files
+        all_paths: list[Path] = []
+        for line in raw.strip().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            p = (root / line).resolve()
+            if p.is_file():
+                all_paths.append(p)
+        if lang in ("java", "auto"):
+            file_list_java = [p for p in all_paths if p.suffix == ".java"]
+        if lang in ("python", "auto"):
+            file_list_py = [p for p in all_paths if p.suffix == ".py"]
+
     # Language-agnostic checks (run regardless of --lang, safe when files absent)
-    smells.extend(find_suspect_packages(root))
-    smells.extend(find_deep_inheritance(root, max_depth=max_depth))
+    smells.extend(find_suspect_packages(root, min_files=args.min_package_files))
+    smells.extend(find_deep_inheritance(root, max_depth=max_depth,
+                                         file_list_java=file_list_java,
+                                         file_list_py=file_list_py))
 
     # Java-specific checks
     if lang in ("java", "auto"):
-        has_java = any(root.rglob("*.java"))
+        if file_list_java is not None:
+            has_java = len(file_list_java) > 0
+        else:
+            has_java = any(_rglob_filtered(root, "*.java"))
         if has_java or lang == "java":
-            smells.extend(find_single_impl_interfaces(root))
-            smells.extend(find_pass_through_methods(root))
+            smells.extend(find_single_impl_interfaces(root, file_list=file_list_java))
+            smells.extend(find_pass_through_methods(root, file_list=file_list_java))
         if lang == "java" and not has_java:
             print("Warning: --lang java specified but no .java files found.", file=sys.stderr)
 
     # Python-specific checks
     if lang in ("python", "auto"):
-        has_py = any(root.rglob("*.py"))
+        if file_list_py is not None:
+            has_py = len(file_list_py) > 0
+        else:
+            has_py = any(_rglob_filtered(root, "*.py"))
         if has_py or lang == "python":
-            smells.extend(find_python_abc_smell(root))
-            smells.extend(find_python_pass_through(root))
+            smells.extend(find_python_abc_smell(root, file_list=file_list_py))
+            smells.extend(find_python_pass_through(root, file_list=file_list_py))
         if lang == "python" and not has_py:
             print("Warning: --lang python specified but no .py files found.", file=sys.stderr)
 

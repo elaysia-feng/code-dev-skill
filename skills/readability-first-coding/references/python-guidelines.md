@@ -19,18 +19,23 @@ class OrderService:
 
 Do **not** automatically create abstract base classes (ABCs) for services unless multiple implementations exist or the user explicitly requests them.
 
+Do **not** proactively create `Protocol` classes for type hints. Use concrete types or simple type aliases instead. Protocols add indirection that obscures the real implementation without improving readability.
+
 ## DTO
 
-Use dataclasses or Pydantic models for request/response data:
+Use dataclasses or Pydantic models for request/response data.
+
+Do not return database entities directly from controllers or public API endpoints.
 
 ```python
 # dto/request/create_order_request.py
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class CreateOrderRequest:
     product_id: str
-    quantity: int
+    quantity: Optional[int] = None
 
     def validate(self) -> None:
         if not self.product_id:
@@ -42,11 +47,12 @@ class CreateOrderRequest:
 ```python
 # dto/request/update_order_request.py
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class UpdateOrderRequest:
     product_id: str
-    quantity: int
+    quantity: Optional[int] = None
 
     def validate(self) -> None:
         if not self.product_id:
@@ -73,9 +79,13 @@ When implementing a feature, do **not**:
 - Extract shared functions or mixins
 - Create `common/` or `util/` packages
 - Create abstract base classes
+- Create shared DTOs or shared services
+- Merge similar functions
 - Introduce decorator-based validation unless the user requests it
+- Create unified validators or validation utilities
 - Apply design patterns the user did not ask for
 - Split a readable single-module implementation across many files
+- Modify unrelated module structure
 
 User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
 

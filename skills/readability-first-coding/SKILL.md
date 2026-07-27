@@ -14,15 +14,13 @@ triggers:
   - 不要公共模块
   - 保持重复
   - readability first
-  - 不要过度设计
-  - 抽取公共
-  - common模块
-  - common 模块
-  - 公共模块
+  - 不要过度设计  # activates the same readability-first workflow: prevents over-engineering and unsolicited abstractions
 argument-hint: "[project language or context, e.g. Java, Python, or Java microservices]"
 allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent
 license: MIT
 ---
+
+> **Warning:** `Task` and `Agent` are listed in `allowed-tools` for orchestration purposes, but sub-agents spawned via these tools may not automatically inherit this skill's readability-first constraints. Ensure sub-agents are explicitly instructed to follow the same rules.
 
 # Core Principle
 
@@ -48,7 +46,7 @@ Easy to understand
 - Keep business logic close to where it is used.
 - Allow duplicated code by default.
 - Do not extract repeated logic unless explicitly asked.
-- Do not create `common`, `util`, `utils`, `shared`, `core`, `framework`, or `base` modules on your own (unless the user explicitly requests extraction — see "When Extraction IS Requested" below).
+- Do not create `common`, `util`, `utils`, `shared`, `core`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` modules on your own (unless the user explicitly requests extraction — see "When Extraction IS Requested" below).
 - Do not modify unrelated code.
 
 # The Abstraction Gate
@@ -59,7 +57,9 @@ Before extracting any code, ask internally:
 
 If the answer is **No** → do not extract. No matter how many times the code repeats.
 
-# Language-Specific Rules
+> **Note:** The Gate prevents unsolicited abstractions. If the user explicitly requests extraction, proceed with the extraction — the Gate does not block it.
+
+# Language-Specific Rules & References
 
 | Language / Context | Reference File |
 |---|---|
@@ -84,7 +84,7 @@ When receiving a development task:
 7. Do not create new shared modules.
 8. Do not propose complex alternatives unless the task genuinely demands them.
 9. Only analyze shared logic when the user explicitly requests refactoring.
-10. Confirm the final code is easy to read top-to-bottom.
+10. Confirm the final code is easy to read top-to-bottom (see [Final Checks](#final-checks)).
 
 **Existing project conventions:** If the project already consistently uses interface+impl, abstract base classes, or other abstraction patterns, follow that convention — do not break consistency. Readability-first principles take precedence for new code and new modules, and in areas where the existing convention is inconsistent or absent.
 
@@ -136,18 +136,31 @@ These rules apply only when the user explicitly asks to extract shared code:
 
 Only extract what the user specified. Do not "also add" extra framework classes.
 
+> **Microservice exception:** In microservice projects, shared code lives in `base-service/` instead of `common/` — see [microservice-guidelines.md](references/microservice-guidelines.md).
+
 # Scripts
 
 | Script | Purpose |
 |---|---|
-| `scripts/check-abstraction-smell.py` | Scan project for over-abstraction smells (single-impl interfaces, suspect packages, pass-through methods, deep inheritance, single-impl ABCs, Python pass-throughs). **Best-effort only:** uses regex-based parsing and may miss edge cases (multiline generics, annotations spanning lines, complex nested structures). **Designed for new/greenfield projects.** On legacy projects with existing abstractions, expect high noise — use `--json` output and filter results to files touched in the current change. |
+| `scripts/check-abstraction-smell.py` | Scan project for over-abstraction smells. **Best-effort only:** uses regex-based parsing and may miss edge cases (multiline generics, annotations spanning lines, complex nested structures). **Designed for new/greenfield projects.** On legacy projects with existing abstractions, expect high noise — use `--json` output and filter results to files touched in the current change. |
 | `scripts/pre-commit-check.sh` | Git pre-commit hook that runs the smell checker against staged Java/Python files. On legacy projects, consider skipping the hook or filtering its output to changed lines only. |
+
+**Smells detected per language:**
+
+| Smell | Java | Python |
+|---|---|---|
+| Single-implementation interfaces/ABCs | ✅ | ✅ |
+| Empty or single-class common/util packages | ✅ | ✅ |
+| Deep inheritance chains (depth > 2) | ✅ | ✅ |
+| Pass-through wrapper methods | ✅ | ✅ |
+| Python pass-through functions | — | ✅ |
 
 Run before committing:
 
 ```bash
 python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
 python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang auto   # auto-detect language
 python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java --json  # machine-readable
 ```
 
@@ -170,25 +183,29 @@ chmod +x .git/hooks/pre-commit
 
 Before completing any task:
 
-- [ ] Did I create a shared method just to reduce duplication? → If yes, inline it back. **(Test code exempt — shared fixtures, base test classes, and test helpers are acceptable.)**
-- [ ] Did I create a `common`, `util`, `utils`, `shared`, `core`, `framework`, or `base` module the user did not ask for? → If yes, delete it.
+- [ ] Did I create a shared method just to reduce duplication? → If yes, inline it back. **(Test code exempt if 3+ test methods use it — shared fixtures, base test classes, and test helpers are acceptable.)**
+- [ ] Did I create a `common`, `util`, `utils`, `shared`, `core`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` module the user did not ask for? → If yes, delete it. (Example: creating `common/` to hold a helper used by two files — inline it instead.)
 - [ ] Did I add unnecessary parent classes or interfaces? → If yes, delete them. **(Test code exempt — base test classes are acceptable.)**
 - [ ] Does understanding simple logic require jumping across multiple files? → If yes, inline.
 - [ ] Did I modify unrelated code? → If yes, revert.
 - [ ] Did I use a more complex approach than the task requires? → If yes, simplify.
-- [ ] Can the code be read top-to-bottom? → If not, rewrite.
+- [ ] Can the main business flow be read top-to-bottom? → If not, rewrite.
 
 **If an abstraction reduces readability, delete the abstraction and restore direct code.**
 
 # Test Code
 
-Test code follows the same readability-first principles but with a lower bar for extraction:
+Test code follows the same readability-first principles but with a lower bar for extraction. Within the Core Principle hierarchy, **readability still takes precedence over boilerplate reduction** — "reduce boilerplate" is not a priority; it is merely a side benefit of acceptable test abstractions:
 
 - Shared fixtures, base test classes, and test helpers are acceptable when they reduce boilerplate without obscuring the test's intent.
 - A reader should still understand what a test does by reading the test method alone — avoid deep inheritance chains in test classes.
 - `setUp()` / `@BeforeEach` is fine for common arrangement; keep it limited to what every test in the class genuinely needs.
 - If a shared test utility makes individual tests harder to follow, inline it.
 
-# Core Rule
+# Skill Deactivation
 
-> **Unless the user explicitly requests it, never extract shared methods, utility classes, parent classes, or shared modules — no matter how many times the code repeats.**
+Deactivate this skill when:
+
+- The user explicitly asks to refactor for reuse or DRY extraction.
+- The project has already committed to a layered/abstraction-heavy architecture and the task is within that existing pattern.
+- The user explicitly requests a different coding style or priority.

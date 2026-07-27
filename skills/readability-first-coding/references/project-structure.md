@@ -66,6 +66,6 @@ Application entry point. Creates and wires the application, starts the server.
 
 ### repository
 
-Data access layer (equivalent to Java's `mapper`). Database queries and persistence logic.
+Data access layer (equivalent to Java's `mapper`). Database queries and persistence logic. Note: SKILL.md references Java `mapper` conventions but does not explicitly cover the Python `repository` directory — the same readability-first principles (no shared base repository unless the user requests it) apply here as well.
 
 Same principles as Java — the directory structure organizes code by its role in the application (controller, service, repository, entity), not by abstract design-layer patterns (interface/impl, domain/infrastructure, strategy/factory).

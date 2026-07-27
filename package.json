@@ -21,7 +21,8 @@
     "python"
   ],
   "bin": {
-    "readability-first-install": "./bin/install.js"
+    "readability-first-install": "./bin/install.js",
+    "readability-first-check": "./bin/check-update.js"
   },
   "files": [
     "skills/",

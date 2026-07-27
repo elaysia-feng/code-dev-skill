@@ -95,9 +95,50 @@ When implementing a feature, do **not**:
 - Create shared DTOs or shared Services
 - Merge similar methods
 - Apply Template Method, Strategy, or Factory patterns
+- Split a readable single-module implementation across many files
 - Modify unrelated module structure
 
 User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
+
+## Pass-Through Methods
+
+A method that only delegates to another method without adding logic is a pass-through wrapper. Do not create these unless explicitly requested:
+
+```java
+// DO NOT create a wrapper that only delegates
+@Service
+public class OrderService {
+    public void cancelOrder(Long orderId) {
+        return this.orderManager.cancel(orderId);
+    }
+}
+```
+
+**Why incorrect:** The caller could invoke `orderManager.cancel(orderId)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+
+## Deep Inheritance Chains
+
+Avoid inheritance chains deeper than 2 levels (grandparent -> parent -> child). Each additional level forces readers to understand more files to know what a method actually does:
+
+```java
+// DO NOT create deep chains like:
+// ExpressCancelHandler -> CancelHandler -> BaseHandler
+public abstract class BaseHandler {
+    public abstract void handle(Request request);
+}
+
+public class CancelHandler extends BaseHandler {
+    @Override
+    public void handle(Request request) { ... }
+}
+
+public class ExpressCancelHandler extends CancelHandler {
+    @Override
+    public void handle(Request request) { ... }
+}
+```
+
+**Why incorrect:** Three levels force readers to understand all three classes. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
 
 ## When User Requests Extraction
 

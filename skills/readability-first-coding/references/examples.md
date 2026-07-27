@@ -101,10 +101,13 @@ public class OrderServiceImpl implements OrderService { ... }
 
 ```python
 # dto/request/create_order_request.py
+from dataclasses import dataclass
+from typing import Optional
+
 @dataclass
 class CreateOrderRequest:
     product_id: str
-    quantity: int
+    quantity: Optional[int] = None
 
     def validate(self) -> None:
         if not self.product_id:
@@ -115,10 +118,13 @@ class CreateOrderRequest:
 
 ```python
 # dto/request/update_order_request.py
+from dataclasses import dataclass
+from typing import Optional
+
 @dataclass
 class UpdateOrderRequest:
     product_id: str
-    quantity: int
+    quantity: Optional[int] = None
 
     def validate(self) -> None:
         if not self.product_id:
