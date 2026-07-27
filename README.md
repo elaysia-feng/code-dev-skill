@@ -1,0 +1,56 @@
+# readability-first-coding
+
+Claude Code skill — prioritize readable, direct code over unsolicited abstractions for Java & Python backends.
+
+## Install
+
+```bash
+npm install readability-first-coding
+npx readability-first-install             # project-local → ./.claude/skills/
+npx readability-first-install --global    # global → ~/.claude/skills/
+```
+
+Claude Code auto-discovers skills under `.claude/skills/`. No marketplace required.
+
+## What It Does
+
+- Implements only what you asked for — no extra abstraction layers
+- Keeps duplicated business logic duplicated unless you explicitly request extraction
+- Never creates `common`, `util`, `utils`, `shared`, `core`, `framework`, or `base` modules on its own
+- Writes code that reads top-to-bottom, with business logic inline
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/check-abstraction-smell.py` | Scan for over-abstraction: single-impl interfaces, pass-through methods, deep inheritance, single-impl ABCs |
+| `scripts/pre-commit-check.sh` | Git pre-commit hook wrapping the smell checker |
+
+```bash
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
+```
+
+## Structure
+
+```
+skills/readability-first-coding/
+├── SKILL.md
+├── assets/ide-settings.json
+├── evals/
+│   ├── evals.json
+│   └── trigger-evals.json
+├── references/
+│   ├── examples.md
+│   ├── java-guidelines.md
+│   ├── microservice-guidelines.md
+│   ├── project-structure.md
+│   └── python-guidelines.md
+└── scripts/
+    ├── check-abstraction-smell.py
+    └── pre-commit-check.sh
+```
+
+## License
+
+MIT

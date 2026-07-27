@@ -4,6 +4,9 @@ __pycache__/
 # OMC runtime state
 .omc/
 .claude/
+# Claude plugin (self-distributed, no marketplace)
+.claude-plugin/
+
 # Node / npm
 node_modules/
 npm-debug.log*
