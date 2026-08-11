@@ -26,6 +26,27 @@ Create an interface only when:
 - Multiple implementations actually exist.
 - The existing project convention requires it.
 
+### Interface + impl/ Layout Convention
+
+If the project already uses an `interface` + `impl/` folder layout (e.g. `SutBuilder` next to `impl/SutBuilderImpl`), follow it for **every** new class in that package — do not break the layout by introducing a single concrete-only class while siblings have interfaces. Apply the same convention to helpers, builders, orchestrators, and any other collaborator that other modules consume.
+
+```
+com.mware.runner.biz.build/
+├── SutBuilder.java          // interface — public API
+└── impl/
+    └── SutBuilderImpl.java  // implementation
+```
+
+Rules:
+
+- The **interface** lives in the parent package and is the public API callers depend on.
+- The **implementation** lives in `impl/` and is wired via DI (Spring `@Service`, etc.).
+- Callers depend on the interface type, **never** on `*Impl` directly.
+- Naming convention: `<Name>` for the interface, `<Name>Impl` for the implementation.
+- `*Impl` classes must be package-private or only referenced from the DI configuration — they are not part of the public API.
+
+This convention, when adopted, is **mandatory** for the whole package — not opt-in per class. If the project mixes both styles (some packages with interface+impl/, others without), prefer the existing project convention in each package and do not unify styles on your own.
+
 ## DTO
 
 Separate requests and responses:

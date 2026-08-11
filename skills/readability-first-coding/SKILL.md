@@ -91,6 +91,8 @@ When receiving a development task:
 
 **Existing project conventions:** If the project already consistently uses interface+impl, abstract base classes, or other abstraction patterns, follow that convention — do not break consistency. Readability-first principles take precedence for new code and new modules, and in areas where the existing convention is inconsistent or absent.
 
+**Java projects using `<Name>` + `impl/<Name>Impl` layout:** When the project adopts this convention, follow it for **every** new class in that package — do not break the layout by introducing a single concrete-only class while siblings have interfaces. See [references/java-guidelines.md](references/java-guidelines.md) § Interface + impl/ Layout Convention.
+
 # Code Writing Rules
 
 - Method names directly express their purpose.

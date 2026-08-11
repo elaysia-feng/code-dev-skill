@@ -5,6 +5,8 @@ the readability-first-coding skill.
 
 Smells detected:
   - Single-implementation interfaces (XxxService -> XxxServiceImpl)
+    - Exempted when the implementation lives in an `impl/` subfolder (project
+      convention — see references/java-guidelines.md)
   - Empty or single-class common/util/shared/base packages
   - Unnecessary inheritance chains (depth > 2)
   - Pass-through wrapper methods
@@ -174,11 +176,18 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
     for iface_name, impl_set in implementations.items():
         impl_count = len(impl_set)
         if impl_count == 1 and iface_name in interfaces:
+            impl_paths = sorted(impl_set)
+            # Exempt the interface + impl/ folder convention: when the project
+            # adopts this layout (interface in parent package, implementation in
+            # an `impl/` subfolder), the single implementation is project-mandated
+            # convention, not unsolicited abstraction. See references/java-guidelines.md.
+            if any("impl" in Path(p).parts for p in impl_paths):
+                continue
             results.append({
                 "type": "single_impl_interface",
                 "severity": "warning",
                 "interface": interfaces[iface_name],
-                "implementations": sorted(impl_set),
+                "implementations": impl_paths,
                 "message": f"Interface '{iface_name}' has only 1 implementation. Consider using a concrete class unless multiple implementations are needed."
             })
 
