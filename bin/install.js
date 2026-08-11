@@ -23,9 +23,11 @@ const os = require('node:os');
 const { execSync } = require('node:child_process');
 
 const SKILL_NAME = 'readability-first-coding';
+const COMMAND_NAME = 'readability-first';
 
 // Resolve the skill source directory (bundled inside the npm package).
 const skillSrc = path.join(__dirname, '..', 'skills', SKILL_NAME);
+const commandSrc = path.join(__dirname, '..', 'commands', `${COMMAND_NAME}.md`);
 
 function resolveTarget() {
   const args = process.argv.slice(2);
@@ -161,6 +163,7 @@ function doUpdate() {
   // Re-run install to copy updated files
   const target = resolveTarget();
   copyDir(skillSrc, target);
+  copyCommand(target);
   console.log(`Installed to: ${target}`);
   console.log('\nDone!');
 }
@@ -171,8 +174,8 @@ function copyDir(src, dest) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
-    if (entry.isDirectory() && entry.name === '__pycache__') {
-      continue; // skip Python bytecode cache
+    if (entry.isDirectory() && (entry.name === '__pycache__' || entry.name === '.omc')) {
+      continue; // skip Python bytecode cache and OMC runtime state
     }
 
     if (entry.isDirectory()) {
@@ -180,6 +183,22 @@ function copyDir(src, dest) {
     } else {
       fs.copyFileSync(srcPath, destPath);
     }
+  }
+}
+
+// Copy the /<COMMAND_NAME> slash command so users can trigger the skill from the REPL.
+// Global installs go to ~/.claude/commands/; project installs only get a hint.
+function copyCommand(target) {
+  if (!fs.existsSync(commandSrc)) return;
+
+  const globalTarget = path.join(os.homedir(), '.claude', 'skills', SKILL_NAME);
+  if (target === globalTarget) {
+    const cmdDest = path.join(os.homedir(), '.claude', 'commands', `${COMMAND_NAME}.md`);
+    fs.mkdirSync(path.dirname(cmdDest), { recursive: true });
+    fs.copyFileSync(commandSrc, cmdDest);
+    console.log(`Installed slash command: /${COMMAND_NAME} -> ${cmdDest}`);
+  } else {
+    console.log(`Hint: to enable /${COMMAND_NAME} in a project, copy ${commandSrc} to <project>/.claude/commands/`);
   }
 }
 
@@ -209,6 +228,7 @@ function main() {
   console.log(`Installing "${SKILL_NAME}"...`);
 
   copyDir(skillSrc, target);
+  copyCommand(target);
 
   console.log(`Installed to: ${target}`);
   console.log('');

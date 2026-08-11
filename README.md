@@ -12,6 +12,23 @@ npx readability-first-install --global    # global → ~/.claude/skills/
 
 Claude Code auto-discovers skills under `.claude/skills/`. No marketplace required.
 
+### Slash command (Claude Code)
+
+`--global` also installs a `/readability-first` custom command to `~/.claude/commands/`, so you can force the skill on directly from the REPL:
+
+```bash
+/readability-first 给这个 Java 服务加一个订单取消接口
+/readability-first Python (FastAPI + LangGraph) 实现一个查询接口
+```
+
+For a project-scoped command (non-global install), copy it manually:
+
+```bash
+cp commands/readability-first.md .claude/commands/
+```
+
+> **Note:** Skills normally auto-trigger on the keywords below; the slash command just forces the mode on explicitly. Codex CLI has no custom slash commands — use the keyword triggers there.
+
 ## Update
 
 ```bash
@@ -100,6 +117,7 @@ The skill activates when your prompt contains keywords like:
 
 | Trigger | Meaning |
 |---|---|
+| `/readability-first` | Force-activate via Claude Code slash command |
 | `可读性优先` / `readability first` | Activate readability-first mode |
 | `易读懂优先` | Prioritize easy-to-read code |
 | `不要抽取` / `不要抽象` / `不要DRY` | Don't extract or abstract |
