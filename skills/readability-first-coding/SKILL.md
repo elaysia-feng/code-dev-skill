@@ -15,8 +15,11 @@ triggers:
   - 保持重复
   - readability first
   - 不要过度设计  # activates the same readability-first workflow: prevents over-engineering and unsolicited abstractions
-argument-hint: "[project language or context, e.g. Java, Python, or Java microservices]"
-allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent
+  - 抽取公共
+  - common模块
+  - 公共模块
+argument-hint: "[project language or context, e.g. Java, Python (FastAPI + LangGraph), or Java microservices]"
+allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent,LSP
 license: MIT
 ---
 
@@ -46,7 +49,7 @@ Easy to understand
 - Keep business logic close to where it is used.
 - Allow duplicated code by default.
 - Do not extract repeated logic unless explicitly asked.
-- Do not create `common`, `util`, `utils`, `shared`, `core`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` modules on your own (unless the user explicitly requests extraction — see "When Extraction IS Requested" below).
+- Do not create `common`, `util`, `utils`, `shared`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` modules on your own (unless the user explicitly requests extraction — see "When Extraction IS Requested" below). `core/` is acceptable **only** in FastAPI + LangGraph projects where it holds infrastructure files (`config.py`, `llm.py`, `middleware.py`, `langgraph/`); do not use it as a general-purpose dumping ground.
 - Do not modify unrelated code.
 
 # The Abstraction Gate
@@ -63,11 +66,11 @@ If the answer is **No** → do not extract. No matter how many times the code re
 
 | Language / Context | Reference File |
 |---|---|
-| Java backend | `skills/readability-first-coding/references/java-guidelines.md` |
-| Python backend | `skills/readability-first-coding/references/python-guidelines.md` |
-| Java microservices | `skills/readability-first-coding/references/microservice-guidelines.md` |
-| Directory layout | `skills/readability-first-coding/references/project-structure.md` |
-| Good/Bad examples | `skills/readability-first-coding/references/examples.md` |
+| Java backend | `references/java-guidelines.md` |
+| Python backend (FastAPI + LangGraph) | `references/python-guidelines.md` |
+| Java microservices | `references/microservice-guidelines.md` |
+| Directory layout | `references/project-structure.md` |
+| Good/Bad examples | `references/examples.md` |
 
 When starting work in a supported language, use Read to load the corresponding reference file before implementing code — this ensures the language-specific guidelines are in context.
 
@@ -184,7 +187,7 @@ chmod +x .git/hooks/pre-commit
 Before completing any task:
 
 - [ ] Did I create a shared method just to reduce duplication? → If yes, inline it back. **(Test code exempt if 3+ test methods use it — shared fixtures, base test classes, and test helpers are acceptable.)**
-- [ ] Did I create a `common`, `util`, `utils`, `shared`, `core`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` module the user did not ask for? → If yes, delete it. (Example: creating `common/` to hold a helper used by two files — inline it instead.)
+- [ ] Did I create a `common`, `util`, `utils`, `shared`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` module the user did not ask for? → If yes, delete it. (Example: creating `common/` to hold a helper used by two files — inline it instead.) (`core/` is allowed only as FastAPI+LangGraph infrastructure — not as a generic extraction target.)
 - [ ] Did I add unnecessary parent classes or interfaces? → If yes, delete them. **(Test code exempt — base test classes are acceptable.)**
 - [ ] Does understanding simple logic require jumping across multiple files? → If yes, inline.
 - [ ] Did I modify unrelated code? → If yes, revert.

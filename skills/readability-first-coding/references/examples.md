@@ -97,43 +97,27 @@ public class OrderServiceImpl implements OrderService { ... }
 
 ## Python Examples
 
-### Correct: Direct Dataclass Validation
+### Correct: Pydantic Schema with Inline Validation
 
 ```python
-# dto/request/create_order_request.py
-from dataclasses import dataclass
-from typing import Optional
+# schemas/create_order_request.py
+from pydantic import BaseModel, Field
 
-@dataclass
-class CreateOrderRequest:
-    product_id: str
-    quantity: Optional[int] = None
-
-    def validate(self) -> None:
-        if not self.product_id:
-            raise ValueError("product_id is required")
-        if self.quantity is None or self.quantity <= 0:
-            raise ValueError("quantity must be greater than 0")
+class CreateOrderRequest(BaseModel):
+    product_id: str = Field(..., min_length=1)
+    quantity: int = Field(..., gt=0)
 ```
 
 ```python
-# dto/request/update_order_request.py
-from dataclasses import dataclass
-from typing import Optional
+# schemas/update_order_request.py
+from pydantic import BaseModel, Field
 
-@dataclass
-class UpdateOrderRequest:
-    product_id: str
-    quantity: Optional[int] = None
-
-    def validate(self) -> None:
-        if not self.product_id:
-            raise ValueError("product_id is required")
-        if self.quantity is None or self.quantity <= 0:
-            raise ValueError("quantity must be greater than 0")
+class UpdateOrderRequest(BaseModel):
+    product_id: str = Field(..., min_length=1)
+    quantity: int = Field(..., gt=0)
 ```
 
-**Why correct:** Each DTO owns its validation. No shared base class or mixin.
+**Why correct:** Each schema owns its validation. No shared base class or mixin. Field duplication between schemas is allowed.
 
 ### Incorrect: Unsolicited ABC
 
@@ -147,35 +131,84 @@ class BaseRequest(ABC):
         ...
 ```
 
-**Why incorrect:** An abstract base class for two dataclasses adds an import, a file to jump to, and no value the inline approach didn't already provide.
+**Why incorrect:** An abstract base class for two Pydantic models adds an import, a file to jump to, and no value the inline approach didn't already provide.
 
 ### Correct: Concrete Service, No ABC
 
 ```python
-# order_service.py
+# services/order_service.py
+from sqlmodel import Session
+from app.models.order import Order
+
 class OrderService:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
     def cancel_order(self, order_id: int) -> None:
-        order = self.order_repository.find_by_id(order_id)
+        order = self.session.get(Order, order_id)
         if order is None:
             raise OrderNotFoundException(order_id)
         if order.status != "PENDING":
             raise ValueError("Only pending orders can be cancelled")
         order.status = "CANCELLED"
-        self.order_repository.update(order)
+        self.session.add(order)
+        self.session.commit()
 ```
 
-**Why correct:** One class, all logic visible, no inheritance or interface indirection.
+**Why correct:** One class, all logic visible, no inheritance or interface indirection. Service accesses the model directly through the SQLModel session — no separate repository layer was added unprompted.
 
 ### Incorrect: Python Pass-Through Wrapper
 
 ```python
-# order_service.py — DO NOT create a wrapper that only delegates
+# services/order_service.py — DO NOT create a wrapper that only delegates
 class OrderService:
     def cancel_order(self, order_id: int) -> None:
         return self._order_manager.cancel(order_id)
 ```
 
 **Why incorrect:** The `cancel_order` method is a one-line pass-through that adds no logic. The caller could invoke `order_manager.cancel(order_id)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+
+### Correct: One LangGraph Per File, No BaseGraph
+
+```python
+# graphs/research_assistant.py
+from langgraph.graph import StateGraph, END
+from app.core.langgraph.state import AgentState
+from app.core.langgraph.nodes import call_model, should_continue
+from app.core.langgraph.tools import search_tool, fetch_tool
+from langgraph.prebuilt import ToolNode
+
+def build_graph():
+    g = StateGraph(AgentState)
+    g.add_node("agent", call_model)
+    g.add_node("tools", ToolNode([search_tool, fetch_tool]))
+    g.set_entry_point("agent")
+    g.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+    g.add_edge("tools", "agent")
+    return g.compile()
+
+graph = build_graph()
+```
+
+**Why correct:** One compiled `StateGraph` per file. Shared infrastructure (state/nodes/tools) lives in `core/langgraph/`; graph-specific composition stays in this file. No `BaseGraph` ABC.
+
+### Incorrect: Unsolicited BaseGraph
+
+```python
+# graphs/base_graph.py — DO NOT CREATE unless user explicitly requests it
+from abc import ABC, abstractmethod
+
+class BaseGraph(ABC):
+    @abstractmethod
+    def build(self):
+        ...
+
+class ResearchAssistantGraph(BaseGraph):
+    def build(self):
+        ...
+```
+
+**Why incorrect:** A `BaseGraph` ABC for one or two graph implementations adds a file to jump through and an inheritance layer for no behavioral reason. The compiled graph itself already encapsulates the agent's structure.
 
 ### Incorrect: Deep Inheritance Chain
 

@@ -1,76 +1,103 @@
 # Python Guidelines
 
+Target stack: **FastAPI + LangGraph**. See `references/project-structure.md` for the directory layout these guidelines assume.
+
 ## Service
 
 When there is only one implementation, prefer a plain class or module-level functions:
 
 ```python
-# order_service.py
+# services/order_service.py
+from sqlmodel import Session
+from app.models.order import Order
+
 class OrderService:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
     def cancel_order(self, order_id: int) -> None:
-        order = self.order_repository.find_by_id(order_id)
+        order = self.session.get(Order, order_id)
         if order is None:
             raise OrderNotFoundException(order_id)
         if order.status != "PENDING":
             raise ValueError("Only pending orders can be cancelled")
         order.status = "CANCELLED"
-        self.order_repository.update(order)
+        self.session.add(order)
+        self.session.commit()
 ```
 
 Do **not** automatically create abstract base classes (ABCs) for services unless multiple implementations exist or the user explicitly requests them.
 
 Do **not** proactively create `Protocol` classes for type hints. Use concrete types or simple type aliases instead. Protocols add indirection that obscures the real implementation without improving readability.
 
-## DTO
+Do **not** introduce a separate `repositories/` layer — services talk to `models/` directly via the SQLModel/SQLAlchemy session.
 
-Use dataclasses or Pydantic models for request/response data.
+## Schemas
+
+Use Pydantic models for request/response data, placed under `schemas/`:
+
+```python
+# schemas/create_order_request.py
+from pydantic import BaseModel, Field
+
+class CreateOrderRequest(BaseModel):
+    product_id: str = Field(..., min_length=1)
+    quantity: int = Field(..., gt=0)
+```
+
+```python
+# schemas/update_order_request.py
+from pydantic import BaseModel, Field
+
+class UpdateOrderRequest(BaseModel):
+    product_id: str = Field(..., min_length=1)
+    quantity: int = Field(..., gt=0)
+```
+
+Each schema owns its own validation (field validators or `model_validator`). Duplicated field declarations across schemas are allowed.
 
 Do not return database entities directly from controllers or public API endpoints.
 
-```python
-# dto/request/create_order_request.py
-from dataclasses import dataclass
-from typing import Optional
+## Graphs (LangGraph)
 
-@dataclass
-class CreateOrderRequest:
-    product_id: str
-    quantity: Optional[int] = None
-
-    def validate(self) -> None:
-        if not self.product_id:
-            raise ValueError("product_id is required")
-        if self.quantity is None or self.quantity <= 0:
-            raise ValueError("quantity must be greater than 0")
-```
+One compiled `StateGraph` per file under `graphs/`. Each graph file imports its state, nodes, and tools from `core/langgraph/` and exports a compiled `graph`:
 
 ```python
-# dto/request/update_order_request.py
-from dataclasses import dataclass
-from typing import Optional
+# graphs/research_assistant.py
+from langgraph.graph import StateGraph, END
+from app.core.langgraph.state import AgentState
+from app.core.langgraph.nodes import call_model, should_continue
+from app.core.langgraph.tools import search_tool, fetch_tool
+from langgraph.prebuilt import ToolNode
 
-@dataclass
-class UpdateOrderRequest:
-    product_id: str
-    quantity: Optional[int] = None
+def build_graph():
+    g = StateGraph(AgentState)
+    g.add_node("agent", call_model)
+    g.add_node("tools", ToolNode([search_tool, fetch_tool]))
+    g.set_entry_point("agent")
+    g.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+    g.add_edge("tools", "agent")
+    return g.compile()
 
-    def validate(self) -> None:
-        if not self.product_id:
-            raise ValueError("product_id is required")
-        if self.quantity is None or self.quantity <= 0:
-            raise ValueError("quantity must be greater than 0")
+graph = build_graph()
 ```
+
+Rules:
+- Do **not** create a `BaseGraph` ABC or abstract graph builder.
+- Do **not** extract shared cross-graph state into a generic `BaseState` unless the user asks.
+- Cross-graph nodes/tools live in `core/langgraph/`. Graph-specific nodes/tools stay in the graph file.
 
 ## Repeated Code
 
-Duplicated validation is allowed. Each DTO owns its `validate()` method. Do not extract a shared validator unless the user asks.
+Duplicated validation is allowed. Each schema owns its own validation. Duplicated node logic across graph files is allowed. Do not extract a shared validator, shared node, or shared `BaseGraph` unless the user asks.
 
 **Do not proactively create:**
 
 - `common/validators.py`
-- `BaseRequest` with a generic `validate()`
+- `BaseModel` with a shared abstract `validate()`
 - `ValidationMixin`
 - `shared/exceptions.py` (unless multiple modules genuinely share the same exception types)
+- `graphs/base_graph.py` or `graphs/abstract_graph.py`
 
 ## Forbidden Proactive Refactorings
 
@@ -82,10 +109,11 @@ When implementing a feature, do **not**:
 - Create shared DTOs or shared services
 - Merge similar functions
 - Introduce decorator-based validation unless the user requests it
-- Create unified validators or validation utilities
 - Apply design patterns the user did not ask for
 - Split a readable single-module implementation across many files
 - Modify unrelated module structure
+- Create a `BaseGraph` / `BaseState` / `BaseAgent` for LangGraph
+- Move graph-specific nodes or tools into `core/langgraph/` on your own
 
 User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
 
@@ -94,7 +122,7 @@ User says "implement feature" → implement only that feature. User says "refact
 A function or method that only delegates to another callable without adding logic is a pass-through wrapper. Do not create these unless explicitly requested:
 
 ```python
-# DO NOT create a wrapper that only delegates
+# services/order_service.py — DO NOT create a wrapper that only delegates
 class OrderService:
     def cancel_order(self, order_id: int) -> None:
         return self._order_manager.cancel(order_id)
@@ -128,5 +156,6 @@ class ExpressCancelHandler(CancelHandler):
 | Shared Pydantic models, exceptions, enums, response models | `common/` |
 | Stateless utilities (date_utils.py, string_utils.py) | `util/` |
 | Explicitly requested base classes | `base/` |
+| Cross-graph LangGraph nodes/tools/state | `core/langgraph/` |
 
 Only extract what the user specified. Keep the extraction minimal.

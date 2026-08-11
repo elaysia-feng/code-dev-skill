@@ -204,7 +204,9 @@ def find_suspect_packages(root: Path, min_files: int = 2) -> list[dict]:
     represent unnecessary abstraction.
     """
     results = []
-    suspect_names = {"common", "util", "utils", "shared", "core", "framework", "base"}
+    # `core` is intentionally excluded: FastAPI + LangGraph projects use `core/`
+    # as the standard location for infrastructure (config, llm, middleware, langgraph/).
+    suspect_names = {"common", "util", "utils", "shared", "framework", "base"}
     # Exclusions matched against full path components (exact match)
     exclude_dirs = {"node_modules", ".git", "__pycache__", "venv", ".venv",
                     "target", "build", "dist", ".mvn", ".gradle", "egg-info"}
