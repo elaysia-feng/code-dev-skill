@@ -2,13 +2,28 @@
 
 These examples illustrate the decision rule: preserve real boundaries and existing conventions; avoid indirection that exists only for symmetry or line-count reduction.
 
-## Java: one implementation in a new package
+## Java monolith: service interface + impl
 
-Good:
+For an ordinary monolithic Spring project, business services use a contract plus implementation:
+
+```text
+service/
+├── OrderService.java
+└── impl/
+    └── OrderServiceImpl.java
+```
+
+```java
+public interface OrderService {
+    void cancelOrder(Long orderId);
+}
+```
 
 ```java
 @Service
-public class OrderService {
+public class OrderServiceImpl implements OrderService {
+
+    @Override
     public void cancelOrder(Long orderId) {
         OrderEntity order = orderMapper.selectById(orderId);
         if (order == null) {
@@ -24,38 +39,28 @@ public class OrderService {
 }
 ```
 
-Do not add an interface only because the class is a Spring service:
+Callers inject `OrderService`, not `OrderServiceImpl`.
+
+## Java multi-module: dedicated `biz` module
+
+For a multi-Maven project with a dedicated business module, organize each domain inside `biz` with contracts and `impl/`:
 
 ```text
-OrderService
-OrderServiceImpl
+community.biz/
+└── src/main/java/com/mware/community/biz/
+    └── like/
+        ├── LikeService.java
+        ├── LikeRedisStore.java
+        ├── LikeStreamRelay.java
+        └── impl/
+            ├── LikeServiceImpl.java
+            ├── LikeRedisStoreImpl.java
+            └── LikeStreamRelayImpl.java
 ```
 
-when there is no existing convention or second implementation.
+Here the interface-first rule applies not only to `Service`, but to business-behavior collaborators inside `biz` such as Store/Relay/Manager/Handler when they represent replaceable business contracts.
 
-## Java: existing interface convention
-
-If sibling services consistently use:
-
-```text
-service/
-├── OrderService.java
-├── ProductService.java
-└── impl/
-    ├── OrderServiceImpl.java
-    └── ProductServiceImpl.java
-```
-
-then adding:
-
-```text
-UserService.java
-impl/UserServiceImpl.java
-```
-
-is correct project consistency.
-
-That does **not** imply every helper or validator now needs its own interface.
+Do not apply the same rule to `LikeStatus` enum, DTOs, entities, configuration classes, or exceptions.
 
 ## Java: domain enum is not over-abstraction
 
@@ -102,22 +107,33 @@ The abstraction is justified by a stable shared invariant, not by duplicated lin
 This is not a meaningless wrapper:
 
 ```java
-@Transactional
-@PreAuthorize("hasAuthority('ORDER_CANCEL')")
-public void cancelOrder(Long orderId) {
-    orderManager.cancel(orderId);
+public interface OrderService {
+    void cancelOrder(Long orderId);
 }
 ```
-
-The method owns transaction/security boundaries even though the body is short.
-
-A wrapper with no policy, adaptation, contract, or boundary is more suspicious:
 
 ```java
-public void cancelOrder(Long orderId) {
-    orderManager.cancel(orderId);
+@Service
+public class OrderServiceImpl implements OrderService {
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('ORDER_CANCEL')")
+    public void cancelOrder(Long orderId) {
+        orderManager.cancel(orderId);
+    }
 }
 ```
+
+The implementation owns the project-required business contract plus transaction/security boundaries even though the body is short.
+
+An extra wrapper with no new policy or boundary is still suspicious:
+
+```text
+OrderService -> OrderServiceImpl -> OrderServiceDelegate -> OrderManager
+```
+
+when `OrderServiceDelegate` only forwards the call.
 
 ## Python: FastAPI schema validation
 
