@@ -1,44 +1,10 @@
 # Examples
 
-## Correct: Local Repeated Logic
+These examples illustrate the decision rule: preserve real boundaries and existing conventions; avoid indirection that exists only for symmetry or line-count reduction.
 
-`CreateOrderRequest` and `UpdateOrderRequest` each contain their own validation.
+## Java: one implementation in a new package
 
-**Why correct:** The user did not request extraction. Each class can be understood without navigating to another file. If the two validations diverge in the future, changes are local and isolated.
-
-```java
-// CreateOrderRequest.java
-public void validate() {
-    if (productId == null) {
-        throw new IllegalArgumentException("productId is required");
-    }
-    if (quantity == null || quantity <= 0) {
-        throw new IllegalArgumentException("quantity must be greater than 0");
-    }
-}
-
-// UpdateOrderRequest.java
-public void validate() {
-    if (productId == null) {
-        throw new IllegalArgumentException("productId is required");
-    }
-    if (quantity == null || quantity <= 0) {
-        throw new IllegalArgumentException("quantity must be greater than 0");
-    }
-}
-```
-
-## Incorrect: Unsolicited Extraction
-
-```text
-common/
-└── validator/
-    └── OrderRequestValidator.java
-```
-
-**Why incorrect:** The user did not ask for this. It adds a file, creates a dependency from both request classes to a shared validator, and forces readers to jump to a third file to understand validation rules that were perfectly readable inline.
-
-## Correct: Direct Service Implementation
+Good:
 
 ```java
 @Service
@@ -48,202 +14,268 @@ public class OrderService {
         if (order == null) {
             throw new OrderNotFoundException(orderId);
         }
-        if (!order.getStatus().equals("PENDING")) {
+        if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Only pending orders can be cancelled");
         }
-        order.setStatus("CANCELLED");
+
+        order.setStatus(OrderStatus.CANCELLED);
         orderMapper.updateById(order);
     }
 }
 ```
 
-**Why correct:** All cancellation logic in one method, readable top-to-bottom. No jumping to other files.
-
-## Incorrect: Unnecessary Layers
+Do not add an interface only because the class is a Spring service:
 
 ```text
-OrderCancelHandler
-OrderCancelProcessor
-OrderCancelStrategy
-OrderStateMachine
-OrderDomainService
+OrderService
+OrderServiceImpl
 ```
 
-**Why incorrect:** A simple status update with two guard conditions does not need a state machine, strategy pattern, or domain service. These layers obscure a 10-line operation behind 4–5 files.
+when there is no existing convention or second implementation.
 
-## Correct: Concrete Service, No Interface
+## Java: existing interface convention
+
+If sibling services consistently use:
+
+```text
+service/
+├── OrderService.java
+├── ProductService.java
+└── impl/
+    ├── OrderServiceImpl.java
+    └── ProductServiceImpl.java
+```
+
+then adding:
+
+```text
+UserService.java
+impl/UserServiceImpl.java
+```
+
+is correct project consistency.
+
+That does **not** imply every helper or validator now needs its own interface.
+
+## Java: domain enum is not over-abstraction
+
+Good:
 
 ```java
-@Service
-public class OrderService {
-    // all methods here
+public enum OrderStatus {
+    PENDING,
+    PAID,
+    CANCELLED
 }
 ```
 
-**Why correct:** There is only one implementation. No interface means one less file to open, one less indirection.
+Bad ownership:
 
-## Incorrect: Interface + Impl by Default
+```text
+common/
+└── CommonEnums.java   # unrelated enums from many domains collected together
+```
+
+The problem is the dumping-ground ownership, not the use of an enum.
+
+## Java: repeated validation
+
+Two similar checks do not automatically justify a shared validator:
 
 ```java
-public interface OrderService { ... }
-
-@Service
-public class OrderServiceImpl implements OrderService { ... }
+if (quantity == null || quantity <= 0) {
+    throw new IllegalArgumentException("quantity must be greater than 0");
+}
 ```
 
-**Why incorrect:** Unless multiple implementations exist or the project already has this convention, the interface serves no purpose and adds a file for the reader to chase.
+If several callers must obey the exact same security/signature rule and inconsistent fixes have caused defects, a dedicated shared component can be better:
 
----
-
-## Python Examples
-
-### Correct: Pydantic Schema with Inline Validation
-
-```python
-# schemas/create_order_request.py
-from pydantic import BaseModel, Field
-
-class CreateOrderRequest(BaseModel):
-    product_id: str = Field(..., min_length=1)
-    quantity: int = Field(..., gt=0)
+```text
+security/
+└── RequestSignatureValidator.java
 ```
 
-```python
-# schemas/update_order_request.py
-from pydantic import BaseModel, Field
+The abstraction is justified by a stable shared invariant, not by duplicated lines.
 
-class UpdateOrderRequest(BaseModel):
-    product_id: str = Field(..., min_length=1)
-    quantity: int = Field(..., gt=0)
+## Thin boundary: keep when it owns behavior
+
+This is not a meaningless wrapper:
+
+```java
+@Transactional
+@PreAuthorize("hasAuthority('ORDER_CANCEL')")
+public void cancelOrder(Long orderId) {
+    orderManager.cancel(orderId);
+}
 ```
 
-**Why correct:** Each schema owns its validation. No shared base class or mixin. Field duplication between schemas is allowed.
+The method owns transaction/security boundaries even though the body is short.
 
-### Incorrect: Unsolicited ABC
+A wrapper with no policy, adaptation, contract, or boundary is more suspicious:
 
-```python
-# base/request.py — DO NOT CREATE unless user explicitly requests it
-from abc import ABC, abstractmethod
-
-class BaseRequest(ABC):
-    @abstractmethod
-    def validate(self) -> None:
-        ...
+```java
+public void cancelOrder(Long orderId) {
+    orderManager.cancel(orderId);
+}
 ```
 
-**Why incorrect:** An abstract base class for two Pydantic models adds an import, a file to jump to, and no value the inline approach didn't already provide.
+## Python: FastAPI schema validation
 
-### Correct: Concrete Service, No ABC
+Good:
 
 ```python
-# services/order_service.py
-from sqlmodel import Session
-from app.models.order import Order
-
-class OrderService:
-    def __init__(self, session: Session) -> None:
-        self.session = session
-
-    def cancel_order(self, order_id: int) -> None:
-        order = self.session.get(Order, order_id)
-        if order is None:
-            raise OrderNotFoundException(order_id)
-        if order.status != "PENDING":
-            raise ValueError("Only pending orders can be cancelled")
-        order.status = "CANCELLED"
-        self.session.add(order)
-        self.session.commit()
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
 ```
 
-**Why correct:** One class, all logic visible, no inheritance or interface indirection. Service accesses the model directly through the SQLModel session — no separate repository layer was added unprompted.
+Avoid inventing a generic validator framework for simple request-model constraints.
 
-### Incorrect: Python Pass-Through Wrapper
+## Python: preserve an existing repository layer
 
-```python
-# services/order_service.py — DO NOT create a wrapper that only delegates
-class OrderService:
-    def cancel_order(self, order_id: int) -> None:
-        return self._order_manager.cancel(order_id)
+If the project already has:
+
+```text
+repositories/
+├── order_repository.py
+└── user_repository.py
 ```
 
-**Why incorrect:** The `cancel_order` method is a one-line pass-through that adds no logic. The caller could invoke `order_manager.cancel(order_id)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+then a new service should use that boundary rather than bypass it just because a greenfield project might access SQLAlchemy directly.
 
-### Correct: One LangGraph Per File, No BaseGraph
+## Python: async does not make blocking I/O async
+
+Bad:
 
 ```python
-# graphs/research_assistant.py
-from langgraph.graph import StateGraph, END
-from app.core.langgraph.state import AgentState
-from app.core.langgraph.nodes import call_model, should_continue
-from app.core.langgraph.tools import search_tool, fetch_tool
-from langgraph.prebuilt import ToolNode
+@router.get("/profile")
+async def profile():
+    response = requests.get(EXTERNAL_URL)
+    return response.json()
+```
+
+Prefer the project's asynchronous HTTP client:
+
+```python
+@router.get("/profile")
+async def profile(client: httpx.AsyncClient = Depends(get_http_client)):
+    response = await client.get(EXTERNAL_URL)
+    return response.json()
+```
+
+## LangGraph: small graph stays small
+
+A two-node graph may remain one file:
+
+```python
+class AgentState(TypedDict):
+    query: str
+    documents: list[str]
+    answer: str
+
+
+def retrieve(state: AgentState) -> dict:
+    return {"documents": retriever.invoke(state["query"])}
+
+
+def generate_answer(state: AgentState) -> dict:
+    return {"answer": model.invoke(...) }
+
 
 def build_graph():
-    g = StateGraph(AgentState)
-    g.add_node("agent", call_model)
-    g.add_node("tools", ToolNode([search_tool, fetch_tool]))
-    g.set_entry_point("agent")
-    g.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-    g.add_edge("tools", "agent")
-    return g.compile()
-
-graph = build_graph()
+    builder = StateGraph(AgentState)
+    builder.add_node("retrieve", retrieve)
+    builder.add_node("generate_answer", generate_answer)
+    builder.add_edge("retrieve", "generate_answer")
+    return builder.compile()
 ```
 
-**Why correct:** One compiled `StateGraph` per file. Shared infrastructure (state/nodes/tools) lives in `core/langgraph/`; graph-specific composition stays in this file. No `BaseGraph` ABC.
+Do not create five files merely because LangGraph has named nodes.
 
-### Incorrect: Unsolicited BaseGraph
+## LangGraph: complex graph splits by node
+
+When the graph contains several substantial nodes:
+
+```text
+graphs/research_assistant/
+├── __init__.py
+├── graph.py
+├── state.py
+├── nodes/
+│   ├── __init__.py
+│   ├── plan.py
+│   ├── retrieve.py
+│   ├── grade_documents.py
+│   └── generate_answer.py
+└── tools.py
+```
+
+`nodes/retrieve.py`:
 
 ```python
-# graphs/base_graph.py — DO NOT CREATE unless user explicitly requests it
-from abc import ABC, abstractmethod
-
-class BaseGraph(ABC):
-    @abstractmethod
-    def build(self):
-        ...
-
-class ResearchAssistantGraph(BaseGraph):
-    def build(self):
-        ...
+def retrieve(state: AgentState) -> dict:
+    documents = retriever.invoke(state["query"])
+    return {"documents": documents}
 ```
 
-**Why incorrect:** A `BaseGraph` ABC for one or two graph implementations adds a file to jump through and an inheritance layer for no behavioral reason. The compiled graph itself already encapsulates the agent's structure.
-
-### Incorrect: Deep Inheritance Chain
+`nodes/__init__.py` may expose only lightweight names:
 
 ```python
-# base/handler.py
-class BaseHandler:
-    def handle(self, request):
-        ...
+from .generate_answer import generate_answer
+from .retrieve import retrieve
 
-# orders/cancel_handler.py
-class CancelHandler(BaseHandler):
-    def handle(self, request):
-        ...
-
-# orders/express_cancel_handler.py
-class ExpressCancelHandler(CancelHandler):
-    def handle(self, request):
-        ...
+__all__ = ["retrieve", "generate_answer"]
 ```
 
-**Why incorrect:** A three-level inheritance chain (`ExpressCancelHandler → CancelHandler → BaseHandler`) forces readers to understand all three classes to know what `handle()` actually does. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
+Do not initialize models, connect databases, or compile graphs in `__init__.py`.
 
----
+## LangGraph: node vs tool
 
-## Incorrect: Java Deep Inheritance Chain
+Node:
 
-```java
-// BaseEntity.java
-public abstract class BaseEntity { ... }
-
-// BaseOrderEntity.java
-public abstract class BaseOrderEntity extends BaseEntity { ... }
-
-// ExpressOrderEntity.java
-public class ExpressOrderEntity extends BaseOrderEntity { ... }
+```python
+def retrieve(state: AgentState) -> dict:
+    ...
 ```
 
-**Why incorrect:** Three levels of inheritance for an entity class bury the actual fields across multiple files. Prefer a single concrete entity class unless the hierarchy was explicitly requested.
+Tool selected/called by the model:
+
+```python
+@tool
+def search_web(query: str) -> str:
+    ...
+```
+
+A graph node does not become a tool merely because both are callable Python functions.
+
+## LangGraph: routing stays routing
+
+Good:
+
+```python
+def route_after_grade(state: AgentState) -> Literal["rewrite", "generate"]:
+    return "generate" if state["documents_relevant"] else "rewrite"
+```
+
+Avoid hiding LLM/database work inside the routing function; put that work in a node and route from the resulting state.
+
+## Microservice: shared contract with clear ownership
+
+Good when several services use the same event schema:
+
+```text
+common-api/
+└── event/
+    └── OrderCreatedEvent.java
+```
+
+Bad:
+
+```text
+base-service/
+├── OrderValidator.java
+├── ProductValidator.java
+└── UserBusinessHelper.java
+```
+
+when those classes contain independent domain business rules. A shared module should own shared contracts/infrastructure, not become a place to move unrelated business code.
