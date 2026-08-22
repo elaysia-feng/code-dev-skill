@@ -1,6 +1,6 @@
 # Java Microservice Guidelines
 
-Use this file together with `java-guidelines.md`. Existing repository conventions take precedence.
+Use this file together with `java-guidelines.md`. Existing repository conventions take precedence, while Java business contracts remain interface-first.
 
 ## Service ownership
 
@@ -18,24 +18,48 @@ project-parent/
 
 Do not assume the shared module must be named `base-service`. Existing projects may use `common`, `common-api`, `platform-core`, `shared-kernel`, or no shared module at all.
 
-## Inside one service
+## Business module shape
 
-Follow that service's existing structure. A common Spring shape is:
+First identify how the Maven project organizes business code.
+
+### Normal service module
+
+If each microservice is a regular Spring module, business contracts live under `service/` or the project's existing `services/`, with implementations under `impl/`:
 
 ```text
-com.example.order
-├── controller
-├── dto
-│   ├── request
-│   └── response
-├── service
-├── mapper
-├── entity
-├── exception
-└── config
+com.example.order/
+├── controller/
+├── dto/
+├── service/
+│   ├── OrderService.java
+│   └── impl/
+│       └── OrderServiceImpl.java
+├── mapper/
+├── entity/
+├── exception/
+└── config/
 ```
 
-Do not create every package by default.
+### Dedicated Maven `*.biz` module
+
+If a larger multi-Maven project separates business logic into modules such as `community.biz`, use the `biz` domain layout instead:
+
+```text
+community.biz/
+└── src/main/java/com/mware/community/biz/
+    └── like/
+        ├── LikeService.java
+        ├── LikeRedisStore.java
+        ├── LikeStreamRelay.java
+        └── impl/
+            ├── LikeServiceImpl.java
+            ├── LikeRedisStoreImpl.java
+            └── LikeStreamRelayImpl.java
+```
+
+Do not add another nested `service/` package inside a dedicated `biz` domain merely to imitate a monolith. The `biz/<domain>/` package itself is the business-contract boundary.
+
+In both layouts, callers depend on interfaces, not implementation classes.
 
 ## Cross-service duplication
 
