@@ -2,9 +2,69 @@
 
 These are defaults for Java/Spring backend work. Existing project conventions take precedence when they are consistent.
 
-## Service shape
+## Mandatory `biz` package rule
 
-For a greenfield package with one implementation, prefer a concrete service:
+If a Java module/package intentionally uses a `biz` business layer, business-behavior components under that layer must use interface + `impl/`, even when there is currently only one implementation.
+
+Representative structure:
+
+```text
+com.mware.community.biz/
+├── favorite/
+│   ├── FavoriteService.java
+│   ├── FavoriteRedisStore.java
+│   ├── FavoriteStreamRelay.java
+│   └── impl/
+│       ├── FavoriteServiceImpl.java
+│       ├── FavoriteRedisStoreImpl.java
+│       └── FavoriteStreamRelayImpl.java
+├── follow/
+│   ├── FollowService.java
+│   └── impl/
+│       └── FollowServiceImpl.java
+└── like/
+    ├── LikeService.java
+    ├── LikeRedisStore.java
+    ├── LikeStreamRelay.java
+    └── impl/
+        ├── LikeServiceImpl.java
+        ├── LikeRedisStoreImpl.java
+        └── LikeStreamRelayImpl.java
+```
+
+Required conventions:
+
+1. `<Name>.java` in the domain package is the interface/public business contract.
+2. `impl/<Name>Impl.java` is the concrete implementation.
+3. Put `@Service`, `@Component`, `@Repository`-style Spring stereotypes on the implementation, not on the interface.
+4. Constructor injection and field types use the interface:
+
+```java
+@Service
+public class CommunityFacade {
+    private final LikeService likeService;
+
+    public CommunityFacade(LikeService likeService) {
+        this.likeService = likeService;
+    }
+}
+```
+
+Do not inject or expose:
+
+```java
+private final LikeServiceImpl likeService;
+```
+
+5. Apply the rule to business-behavior collaborators under `biz`, including names/roles such as `Service`, `Store`, `Relay`, `Manager`, `Handler`, `Processor`, and gateway/client adapters.
+6. Do not force interface + impl onto data-only/framework-definition types: DTO/entity/value objects, enums, exceptions, annotations, configuration classes, constants, and similar non-behavior types.
+7. A single implementation is **not** a reason to skip the interface inside `biz`; the `biz` layer deliberately uses contract-first design for extensibility, replacement, testing, and consistent interception/observability boundaries.
+
+This rule overrides the greenfield concrete-service default below.
+
+## Service shape outside `biz`
+
+For a greenfield package **outside an interface-first `biz` layer** with one implementation, a concrete service is acceptable:
 
 ```java
 @Service
@@ -15,9 +75,9 @@ public class OrderService {
 }
 ```
 
-Do not create `OrderService` + `OrderServiceImpl` only because "Spring projects usually do this".
+Do not create `OrderService` + `OrderServiceImpl` only because "Spring projects usually do this" when the package is not governed by the `biz` rule and there is no other project convention requiring it.
 
-Use an interface when there is a concrete reason, for example:
+Use an interface outside `biz` when there is a concrete reason, for example:
 
 - Multiple implementations exist or are expected by an actual requirement.
 - The existing package consistently exposes services through interfaces.
@@ -36,9 +96,11 @@ order/service/
     └── OrderServiceImpl.java
 ```
 
-follow that convention for a new **service of the same role**. Do not generalize the rule to every helper, builder, validator, or internal class in the package.
+follow that convention for a new service of the same role.
 
-Callers should normally depend on the public service contract when the project uses one. Do not add direct dependencies on `*Impl` from unrelated packages.
+Outside `biz`, do not automatically generalize a service-only convention to every helper/validator. Inside `biz`, however, the mandatory business-component interface rule above applies to Service/Store/Relay/Manager/etc.
+
+Callers should depend on public contracts when the project uses them. Do not add direct dependencies on `*Impl` from unrelated packages.
 
 ## DTOs
 
@@ -118,8 +180,34 @@ A thin method is still legitimate when it intentionally owns a boundary such as:
 - retry/circuit-breaker policy
 - API/application-layer contract
 - adaptation between different models
+- a mandatory `biz` interface contract whose implementation is the stable interception/application boundary
 
 Judge the boundary, not the line count.
+
+Example: this is a legitimate thin `biz` implementation because the interface/implementation pair is an intentional business boundary and the implementation owns transaction/security behavior:
+
+```java
+public interface OrderService {
+    void cancelOrder(Long orderId);
+}
+```
+
+```java
+@Service
+public class OrderServiceImpl implements OrderService {
+
+    private final OrderManager orderManager;
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('ORDER_CANCEL')")
+    public void cancelOrder(Long orderId) {
+        orderManager.cancel(orderId);
+    }
+}
+```
+
+By contrast, an extra `OrderService -> OrderServiceDelegate -> OrderManager` chain with no added contract/policy is still unnecessary.
 
 ## Inheritance
 
@@ -136,6 +224,8 @@ Do not introduce these solely for architectural symmetry:
 - converter layer for trivial field copies
 - base controller/service/entity hierarchy
 - generic manager/handler/processor wrappers around an already clear service
+
+The Java `biz` interface + `impl/` rule is not considered speculative layering; it is an explicit project contract. Do not use this section to bypass it.
 
 If the project already has one of these layers, preserve and use it instead of bypassing it.
 
