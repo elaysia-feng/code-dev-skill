@@ -1,16 +1,16 @@
 {
   "skill_name": "readability-first-coding",
-  "description": "Regression cases for project-aware readable backend code: preserve existing architecture, avoid speculative indirection, and use abstractions when they own a real boundary or the user requests them.",
+  "description": "Regression cases for project-aware readable backend code: preserve existing architecture, enforce Java business interface contracts, avoid speculative indirection, and use abstractions when they own a real boundary or the user requests them.",
   "evals": [
     {
       "id": 1,
-      "prompt": "新建一个简单的 Spring OrderService，目前只有一个实现，也没有既有 interface+impl 规范。",
-      "expected_output": "优先创建 concrete OrderService，不为了形式创建 OrderService 接口和 OrderServiceImpl。"
+      "prompt": "新建一个普通单体 Spring Boot 项目，新增订单业务 Service。",
+      "expected_output": "在 service/ 或项目已有 services/ 下创建 OrderService 接口，并在 impl/ 下创建 OrderServiceImpl；Controller/其他业务调用方依赖 OrderService，不直接依赖 Impl。"
     },
     {
       "id": 2,
-      "prompt": "这个项目其他 service 都是 XxxService + impl/XxxServiceImpl，新增一个 UserService。",
-      "expected_output": "遵循现有 service 约定，创建 UserService 和 impl/UserServiceImpl；不要据此给无关 helper/validator 也强制创建接口。"
+      "prompt": "这是一个多 Maven 项目，community.biz 是独立业务模块。现在给 like 域新增 LikeService、LikeRedisStore 和 LikeStreamRelay。",
+      "expected_output": "在 community.biz 的 like 包中创建三个接口，并在 like/impl/ 中创建对应 LikeServiceImpl、LikeRedisStoreImpl、LikeStreamRelayImpl；调用方依赖接口。"
     },
     {
       "id": 3,
@@ -29,8 +29,8 @@
     },
     {
       "id": 6,
-      "prompt": "这个 Service 方法只有一行调用 manager.cancel()，但是方法上有 @Transactional 和权限切面，这层要删吗？",
-      "expected_output": "不要仅按行数判断为无意义 pass-through；识别事务/安全边界的实际职责，可以保留。"
+      "prompt": "这个 OrderServiceImpl 方法只有一行调用 manager.cancel()，但是方法上有 @Transactional 和权限切面，这层要删吗？",
+      "expected_output": "不要仅按行数判断为无意义 pass-through；识别接口契约、事务/安全边界的实际职责，可以保留。"
     },
     {
       "id": 7,
@@ -101,6 +101,11 @@
       "id": 20,
       "prompt": "用户明确要求把两个 service 的重复签名校验抽成一个公共组件。",
       "expected_output": "执行用户要求的抽取，并让组件拥有清晰职责；skill 不应以“禁止抽象”为理由拒绝显式重构需求，也不要顺便扩展成一整套 base framework。"
+    },
+    {
+      "id": 21,
+      "prompt": "community.biz.like 里新增一个 LikeStatus 枚举和 RedisConfig 配置，也要做接口 + Impl 吗？",
+      "expected_output": "不需要。biz 接口规则针对业务行为组件；enum、config、DTO、entity、exception 等数据或框架定义类型不做无意义接口包装。"
     }
   ]
 }
