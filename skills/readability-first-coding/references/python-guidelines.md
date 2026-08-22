@@ -1,243 +1,268 @@
 # Python Guidelines
 
-Target stack: **FastAPI + LangGraph**. See `references/project-structure.md` for the directory layout these guidelines assume.
+Target context: Python backend, especially **FastAPI + LangGraph**. Existing project conventions take precedence over these defaults.
 
-## Service
+See `project-structure.md` before creating or moving packages.
 
-When there is only one implementation, prefer a plain class or module-level functions:
+## FastAPI boundaries
+
+Keep HTTP-specific behavior at the API layer:
 
 ```python
-# services/order_service.py
-from sqlmodel import Session
-from app.models.order import Order
+@router.post("/orders/{order_id}/cancel", response_model=OrderResponse)
+def cancel_order(order_id: int, service: OrderService = Depends(get_order_service)):
+    order = service.cancel_order(order_id)
+    return OrderResponse.model_validate(order)
+```
 
+Prefer:
+
+```text
+API/router
+→ parse HTTP input / Depends / response model / HTTP error mapping
+
+service
+→ business rules and application orchestration
+
+model / mapper / repository (if the project has one)
+→ persistence
+```
+
+Do not raise `HTTPException` deep inside domain/service code unless the existing project intentionally couples that layer to FastAPI.
+
+## Sync vs async
+
+Use `async def` when the function actually awaits asynchronous I/O.
+
+Do not call slow blocking HTTP/database/file APIs directly from an async request or LangGraph node and assume `async` makes them non-blocking. Use the async client supported by the dependency, or follow the project's established thread/offload pattern.
+
+Do not convert an entire code path to async only for style consistency.
+
+## Services and persistence
+
+For a small project with one implementation, a plain class or module-level function is enough:
+
+```python
 class OrderService:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def cancel_order(self, order_id: int) -> None:
+    def cancel_order(self, order_id: int) -> Order:
         order = self.session.get(Order, order_id)
         if order is None:
-            raise OrderNotFoundException(order_id)
+            raise OrderNotFoundError(order_id)
         if order.status != "PENDING":
-            raise ValueError("Only pending orders can be cancelled")
+            raise OrderStateError("Only pending orders can be cancelled")
+
         order.status = "CANCELLED"
         self.session.add(order)
         self.session.commit()
+        return order
 ```
 
-Do **not** automatically create abstract base classes (ABCs) for services unless multiple implementations exist or the user explicitly requests them.
+Do not create an ABC/Protocol solely because there is one implementation.
 
-Do **not** proactively create `Protocol` classes for type hints. Use concrete types or simple type aliases instead. Protocols add indirection that obscures the real implementation without improving readability.
+Do not introduce a new `repositories/` layer automatically. If the project already uses repositories, preserve that boundary and do not bypass it.
 
-Do **not** introduce a separate `repositories/` layer — services talk to `models/` directly via the SQLModel/SQLAlchemy session.
+## Pydantic schemas
 
-## Schemas
-
-Use Pydantic models for request/response data, placed under `schemas/`:
+Use Pydantic models for external request/response data:
 
 ```python
-# schemas/create_order_request.py
-from pydantic import BaseModel, Field
-
 class CreateOrderRequest(BaseModel):
-    product_id: str = Field(..., min_length=1)
-    quantity: int = Field(..., gt=0)
+    product_id: str = Field(min_length=1)
+    quantity: int = Field(gt=0)
 ```
+
+Prefer `Field`, `field_validator`, and `model_validator` over a custom generic validation framework.
+
+Do not return ORM objects directly from public APIs unless response serialization is deliberately configured and already used by the project.
+
+Duplicated fields between create/update schemas are acceptable when the schemas have different API meanings.
+
+## Dependency injection
+
+Use FastAPI `Depends` for request-scoped dependencies and infrastructure wiring when appropriate. Do not create a custom DI container just to wrap `Depends`.
+
+Keep dependency provider functions small and explicit:
 
 ```python
-# schemas/update_order_request.py
-from pydantic import BaseModel, Field
-
-class UpdateOrderRequest(BaseModel):
-    product_id: str = Field(..., min_length=1)
-    quantity: int = Field(..., gt=0)
+def get_order_service(session: Session = Depends(get_session)) -> OrderService:
+    return OrderService(session)
 ```
 
-Each schema owns its own validation (field validators or `model_validator`). Duplicated field declarations across schemas are allowed.
+A provider like this is a legitimate framework boundary; do not classify it as a meaningless pass-through wrapper.
 
-Do not return database entities directly from controllers or public API endpoints.
+## LangGraph: ownership first
 
-## Graphs (LangGraph)
+Each graph owns its graph-specific state, nodes, tools, prompts, and routing logic.
 
-Each agent owns one compiled `StateGraph`. Keep small graphs in a single file; when a graph contains several non-trivial nodes, turn that graph into a package and place different nodes in separate files.
+Only move something to shared `core/langgraph/` after multiple graphs genuinely use the same concern.
 
 ### Small graph
 
-For a small graph, graph-specific nodes may stay next to the graph composition so the whole flow remains readable in one file:
+When the complete flow remains readable, one file is fine:
 
 ```python
-# graphs/research_assistant.py
-from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
-
-from app.core.langgraph.state import AgentState
-from app.core.langgraph.nodes import call_model, should_continue
-from app.core.langgraph.tools import search_tool, fetch_tool
-
-
-def build_graph():
-    g = StateGraph(AgentState)
-    g.add_node("agent", call_model)
-    g.add_node("tools", ToolNode([search_tool, fetch_tool]))
-    g.set_entry_point("agent")
-    g.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-    g.add_edge("tools", "agent")
-    return g.compile()
-
-
-graph = build_graph()
-```
-
-### Complex graph: one node per file
-
-When a graph has several meaningful nodes, prefer this layout instead of growing one large `nodes.py` or one oversized graph file:
-
-```text
-graphs/
-└── research_assistant/
-    ├── __init__.py
-    ├── graph.py
-    └── nodes/
-        ├── __init__.py
-        ├── plan.py
-        ├── retrieve.py
-        ├── grade_documents.py
-        └── generate_answer.py
-```
-
-Each node file should contain one primary LangGraph node (small private helpers may stay in the same file):
-
-```python
-# graphs/research_assistant/nodes/retrieve.py
-from app.core.langgraph.state import AgentState
+# app/graphs/research_assistant.py
+class AgentState(TypedDict):
+    query: str
+    documents: list[str]
+    answer: str
 
 
 def retrieve(state: AgentState) -> dict:
     documents = retriever.invoke(state["query"])
     return {"documents": documents}
-```
 
-Use `nodes/__init__.py` only as a lightweight public export surface. Do not put business logic in it:
 
-```python
-# graphs/research_assistant/nodes/__init__.py
-from .generate_answer import generate_answer
-from .grade_documents import grade_documents
-from .plan import plan
-from .retrieve import retrieve
-
-__all__ = [
-    "plan",
-    "retrieve",
-    "grade_documents",
-    "generate_answer",
-]
-```
-
-The graph composition then reads as a list of named steps rather than implementation details:
-
-```python
-# graphs/research_assistant/graph.py
-from langgraph.graph import END, StateGraph
-
-from app.core.langgraph.state import AgentState
-from .nodes import generate_answer, grade_documents, plan, retrieve
+def generate_answer(state: AgentState) -> dict:
+    answer = model.invoke(...)
+    return {"answer": answer}
 
 
 def build_graph():
-    g = StateGraph(AgentState)
-    g.add_node("plan", plan)
-    g.add_node("retrieve", retrieve)
-    g.add_node("grade_documents", grade_documents)
-    g.add_node("generate_answer", generate_answer)
-    # edges omitted here
-    return g.compile()
+    builder = StateGraph(AgentState)
+    builder.add_node("retrieve", retrieve)
+    builder.add_node("generate_answer", generate_answer)
+    builder.add_edge("retrieve", "generate_answer")
+    return builder.compile()
 
 
 graph = build_graph()
 ```
 
-Rules:
-- Do **not** create a `BaseGraph` ABC or abstract graph builder.
-- Do **not** extract shared cross-graph state into a generic `BaseState` unless the user asks.
-- Graph-specific nodes stay with that graph. For a small graph they may stay in the graph file; for a complex graph they go under that graph's `nodes/` package.
-- Different non-trivial nodes in a complex graph should be split into separate files instead of accumulating in a single large `nodes.py`.
-- `nodes/__init__.py` should contain imports / `__all__` only when a stable package-level import is useful; otherwise it may remain empty.
-- Only nodes/tools/state genuinely reused by multiple graphs belong in `core/langgraph/`.
-- Do not move graph-specific nodes into `core/langgraph/` merely to reduce duplication.
+### Complex graph
 
-## Repeated Code
+When several meaningful nodes make one file hard to scan, split by node:
 
-Duplicated validation is allowed. Each schema owns its own validation. Duplicated node logic across graph files is allowed. Do not extract a shared validator, shared node, or shared `BaseGraph` unless the user asks.
-
-**Do not proactively create:**
-
-- `common/validators.py`
-- `BaseModel` with a shared abstract `validate()`
-- `ValidationMixin`
-- `shared/exceptions.py` (unless multiple modules genuinely share the same exception types)
-- `graphs/base_graph.py` or `graphs/abstract_graph.py`
-
-## Forbidden Proactive Refactorings
-
-When implementing a feature, do **not**:
-
-- Extract shared functions or mixins
-- Create `common/` or `util/` packages
-- Create abstract base classes
-- Create shared DTOs or shared services
-- Merge similar functions
-- Introduce decorator-based validation unless the user requests it
-- Apply design patterns the user did not ask for
-- Split a readable single-module implementation across many files
-- Modify unrelated module structure
-- Create a `BaseGraph` / `BaseState` / `BaseAgent` for LangGraph
-- Move graph-specific nodes or tools into `core/langgraph/` on your own
-
-The LangGraph node-file rule above is not an instruction to split every graph. Split by node only when the graph is large enough that keeping several meaningful node implementations together reduces readability.
-
-User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
-
-## Pass-Through Methods
-
-A function or method that only delegates to another callable without adding logic is a pass-through wrapper. Do not create these unless explicitly requested:
-
-```python
-# services/order_service.py — DO NOT create a wrapper that only delegates
-class OrderService:
-    def cancel_order(self, order_id: int) -> None:
-        return self._order_manager.cancel(order_id)
+```text
+graphs/research_assistant/
+├── __init__.py
+├── graph.py
+├── state.py
+├── nodes/
+│   ├── __init__.py
+│   ├── plan.py
+│   ├── retrieve.py
+│   ├── grade_documents.py
+│   └── generate_answer.py
+├── tools.py
+└── prompts.py              # optional
 ```
 
-**Why incorrect:** The caller could invoke `order_manager.cancel(order_id)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+Prefer one primary node per file. Small helpers used only by that node stay in the same file.
 
-## Deep Inheritance Chains
-
-Avoid inheritance chains deeper than 2 levels (grandparent → parent → child). Each additional level forces readers to understand more files to know what a method actually does:
+`nodes/__init__.py` may remain empty or expose node functions:
 
 ```python
-# DO NOT create deep chains like:
-# ExpressCancelHandler → CancelHandler → BaseHandler
-class BaseHandler:
-    def handle(self, request): ...
+from .generate_answer import generate_answer
+from .retrieve import retrieve
 
-class CancelHandler(BaseHandler):
-    def handle(self, request): ...
-
-class ExpressCancelHandler(CancelHandler):
-    def handle(self, request): ...
+__all__ = ["retrieve", "generate_answer"]
 ```
 
-**Why incorrect:** Three levels force readers to understand all three classes. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
+Do not put graph compilation, model initialization, network calls, or other side effects in `__init__.py`.
 
-## When User Requests Extraction
+## LangGraph node rules
 
-| Shared Content | Location |
-|---|---|
-| Shared Pydantic models, exceptions, enums, response models | `common/` |
-| Stateless utilities (date_utils.py, string_utils.py) | `util/` |
-| Explicitly requested base classes | `base/` |
-| Cross-graph LangGraph nodes/tools/state | `core/langgraph/` |
+A node should make its state contract obvious:
 
-Only extract what the user specified. Keep the extraction minimal.
+```python
+def retrieve(state: AgentState) -> dict:
+    documents = retriever.invoke(state["query"])
+    return {"documents": documents}
+```
+
+Prefer returning the state updates owned by the node instead of mutating unrelated state fields in place.
+
+Keep routing functions focused on routing decisions:
+
+```python
+def route_after_grade(state: AgentState) -> Literal["rewrite", "generate"]:
+    return "generate" if state["documents_relevant"] else "rewrite"
+```
+
+Do not hide substantial business work inside a conditional-edge routing function.
+
+## LangGraph tools vs nodes
+
+A **tool** is an externally callable capability exposed to the model or ToolNode. A **node** is a graph execution step.
+
+Do not mark every node with `@tool`, and do not turn a normal service function into a tool unless the model actually needs permission to select/call it.
+
+Graph-specific tools stay with the graph. Truly cross-agent tools may move to shared infrastructure.
+
+## Graph construction and compilation
+
+Keep graph wiring in `graph.py` (or the single graph file):
+
+```python
+def build_graph(checkpointer=None):
+    builder = StateGraph(AgentState)
+    ...
+    return builder.compile(checkpointer=checkpointer)
+```
+
+Avoid compiling graphs as an import side effect inside package `__init__.py`.
+
+A module-level compiled `graph` is acceptable when the runtime/framework expects it and initialization is cheap/configured. If construction depends on request-specific dependencies, credentials, tenant state, or runtime configuration, use an explicit factory instead.
+
+## Checkpointing and persistence
+
+Checkpoint/memory configuration belongs at graph/runtime composition boundaries, not inside arbitrary nodes.
+
+Keep these concepts separate:
+
+- graph state: data flowing through the current execution
+- checkpointer: persistence for graph execution/thread state
+- long-term memory/store: cross-thread or durable application memory
+
+Do not create a `memory/` package unless the application actually uses long-term memory.
+
+## Prompts
+
+Short prompts used by one node may stay next to that node. Move prompts to `prompts.py` or a prompt package only when they are long, reused, versioned, or independently tested.
+
+Do not create a generic prompt registry for a few static strings.
+
+## Errors and retries
+
+Retry transient infrastructure failures at the boundary that owns the call. Do not wrap every node in a generic retry decorator without knowing which failures are retryable.
+
+Keep business rejection separate from transient failure. For example, "document is irrelevant" is routing/business state, not an exception that should be blindly retried.
+
+## Repeated code and abstractions
+
+Do not extract shared validators, nodes, state bases, tool bases, or `BaseGraph` merely because two implementations look similar.
+
+Extraction is reasonable when there is a concrete shared invariant/contract, an existing project abstraction, multiple implementations, or an explicit user request.
+
+Avoid proactive:
+
+- `BaseGraph`, `BaseState`, `BaseAgent`
+- generic `common/`, `utils/`, `helpers/` packages
+- custom DI containers
+- pass-through manager/service layers
+- repository layers that the project does not already use
+
+## `__init__.py`
+
+Default to empty application-package `__init__.py` files unless a package-level API is useful.
+
+Good:
+
+```python
+from .retrieve import retrieve
+
+__all__ = ["retrieve"]
+```
+
+Avoid side effects such as:
+
+```python
+# do not do this in __init__.py
+model = load_large_model()
+graph = build_graph().compile()
+database.connect()
+```
