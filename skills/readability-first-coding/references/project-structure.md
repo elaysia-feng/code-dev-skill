@@ -1,10 +1,12 @@
 # Project Structure
 
-Directory structure separates responsibilities. It does **not** require common parent classes, interfaces, converters, or utility modules.
+Directory layouts in this file are **starting points, not mandatory scaffolds**. Preserve an existing project's structure when it is coherent. Create only directories needed by the current project.
 
 ## Java Backend
 
-```
+A common Spring backend shape is:
+
+```text
 com.example.project
 ├── controller
 ├── dto
@@ -17,155 +19,187 @@ com.example.project
 └── exception
 ```
 
-### controller
+Optional domain-specific packages such as `enums/`, `event/`, `validation/`, or `client/` should be added only when the domain actually needs them.
 
-Receives parameters, calls Service, returns results.
+### Responsibilities
 
-### dto/request
+- `controller/` — HTTP boundary: parse/validate request, call application/service logic, return response.
+- `dto/request/` — incoming API models.
+- `dto/response/` — outgoing API models.
+- `service/` — business/application logic.
+- `mapper/` — persistence access when using MyBatis/MyBatis-Plus style mappers.
+- `entity/` — persistence models.
+- `config/` — framework/infrastructure configuration.
+- `exception/` — project/domain exceptions when they have clear ownership.
 
-Request body data for incoming API calls.
+Do not create every package just because it appears in this example.
 
-### dto/response
+## Java Microservices
 
-Response body data returned to clients.
+Prefer domain/service ownership over one global shared module:
 
-### service
+```text
+project-parent/
+├── order-service/
+├── product-service/
+├── user-service/
+└── shared-module/          # optional; only if the project genuinely needs one
+```
 
-Business logic goes here directly. Do **not** create `Service` interface + `ServiceImpl` by default. Only split when:
+The shared module may already be named `base-service`, `common`, `common-api`, `platform-core`, etc. Follow the repository's existing name instead of inventing or renaming it.
 
-- Multiple implementations actually exist
-- The existing project convention requires it
-- The user explicitly requests it
-
-### mapper
-
-Database access layer.
-
-### entity
-
-Database table mappings.
+See `microservice-guidelines.md` for cross-service rules.
 
 ## Python Backend (FastAPI + LangGraph)
 
-Based on the popular FastAPI + LangGraph templates (`JoshuaC215/agent-service-toolkit`, `wassim249/fastapi-langgraph-agent-production-ready-template`, `fastapi/full-stack-fastapi-template`).
+Use a real Python package under `src/` so imports and the directory tree agree:
 
-```
+```text
 src/
-├── main.py                       # FastAPI app entry point
-├── api/
-│   └── v1/                       # Route handlers (APIRouter), grouped by version
-├── core/
-│   ├── config.py                 # pydantic-settings, reads from env / .env
-│   ├── llm.py                    # LLM client wrappers (ChatOpenAI, etc.)
-│   ├── middleware.py
-│   └── langgraph/                # LangGraph infrastructure shared across graphs
-│       ├── state.py              # Shared State / TypedDict definitions
-│       ├── nodes.py              # Small set of nodes genuinely reused by graphs
-│       ├── tools.py              # Shared @tool functions
-│       └── graph.py              # Shared graph composition helpers
-├── graphs/                       # LangGraph agent implementations
-│   ├── __init__.py               # Registry mapping graph_id -> compiled graph
-│   ├── {simple_agent}.py         # Small graph: graph + graph-specific nodes may stay together
-│   └── {complex_agent}/          # Complex graph: split meaningful nodes by file
-│       ├── __init__.py
-│       ├── graph.py
-│       └── nodes/
-│           ├── __init__.py       # Optional lightweight exports only
-│           ├── plan.py
-│           ├── retrieve.py
-│           └── generate.py
-├── schemas/                      # Pydantic request/response models
-├── services/                     # Non-agent business logic
-├── models/                       # ORM models (SQLModel / SQLAlchemy)
-├── memory/                       # Long-term memory (mem0, pgvector, etc.)
-└── utils/
+└── app/
+    ├── __init__.py
+    ├── main.py
+    ├── api/
+    │   └── v1/
+    ├── core/
+    │   ├── config.py
+    │   ├── llm.py
+    │   └── middleware.py          # optional
+    ├── graphs/
+    ├── schemas/
+    ├── services/
+    ├── models/
+    └── memory/                    # optional
 ```
 
-Optional at repo root (not under `src/`):
+Do **not** create `utils/`, `common/`, `base/`, `repositories/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need or already uses that convention.
 
-```
-alembic/                          # Database migrations
-tests/
+Typical repository-root files:
+
+```text
 pyproject.toml
-.langgraph.json                   # LangGraph Studio / CLI graph declarations
+.env.example
+tests/
+alembic/                 # only when SQL migrations are used
+langgraph.json            # only when LangGraph CLI/Studio deployment needs it
 ```
 
-### main.py
+### `app/main.py`
 
-Application entry. Creates the `FastAPI` instance, registers routers from `api/v1/`, attaches middleware, and starts `uvicorn`.
+Creates the `FastAPI` application and registers routers/middleware. Keep business logic out of the entry point.
 
-### api/v1/
+### `api/`
 
-Route handlers using `APIRouter`. Each file corresponds to one resource or domain. Endpoints delegate to either a graph (from `graphs/`) or a service (from `services/`).
+HTTP route handlers. Organize by API version/domain only when the project is large enough to benefit from it.
 
-### core/config.py
+Examples:
 
-`pydantic-settings` `BaseSettings` subclass. Centralized env-driven configuration. No business logic.
-
-### core/llm.py
-
-LLM client wrappers. One factory per provider (OpenAI, Anthropic, etc.). Returns `BaseChatModel` instances. Keep prompt templates in `core/prompts/` if they grow large.
-
-### core/langgraph/
-
-Infrastructure genuinely shared by multiple LangGraph agents:
-- `state.py` — state types consumed across multiple graphs.
-- `nodes.py` — a small set of node functions genuinely reused by multiple graphs.
-- `tools.py` — `@tool` decorated functions exposed across multiple agents.
-- `graph.py` — graph composition helpers used across multiple graphs.
-
-Do not move graph-specific nodes here simply because they look reusable or similar.
-
-### graphs/
-
-Each agent owns one compiled `StateGraph`.
-
-For a **small graph**, keep it in one file. Graph-specific nodes may remain next to the graph composition when that makes the complete flow easier to read:
-
+```text
+api/
+└── v1/
+    ├── chat.py
+    └── documents.py
 ```
+
+A very small service may simply use `api/chat.py`; do not introduce version folders without a requirement.
+
+### `core/`
+
+Infrastructure/configuration used broadly by the application, such as:
+
+```text
+core/
+├── config.py
+├── llm.py
+└── middleware.py
+```
+
+`core/` is not a dumping ground for business helpers.
+
+### `graphs/`: small LangGraph agent
+
+For a small graph, keep the graph and graph-specific logic together when it remains easy to read:
+
+```text
 graphs/
 └── research_assistant.py
 ```
 
-For a **complex graph** with several meaningful nodes, use a graph package and split different nodes into separate files:
+The file may contain its state type, a few nodes, routing functions, and graph composition.
 
-```
+### `graphs/`: complex LangGraph agent
+
+When one graph has several meaningful nodes, use a package owned by that graph:
+
+```text
 graphs/
 └── research_assistant/
     ├── __init__.py
     ├── graph.py
-    └── nodes/
-        ├── __init__.py
-        ├── plan.py
-        ├── retrieve.py
-        ├── grade_documents.py
-        └── generate_answer.py
+    ├── state.py
+    ├── nodes/
+    │   ├── __init__.py
+    │   ├── plan.py
+    │   ├── retrieve.py
+    │   ├── grade_documents.py
+    │   └── generate_answer.py
+    ├── tools.py                 # or tools/ when there are several substantial tools
+    └── prompts.py               # optional; only when prompts are large enough to deserve a file
 ```
 
-`nodes/__init__.py` is not a business-logic file. It may remain empty, or provide lightweight imports / `__all__` so `graph.py` can use a clean package-level import. Do not add side effects or initialization work there.
+Rules:
 
-Prefer one primary LangGraph node per node file. Small helpers used only by that node may stay in the same file.
+- Prefer one primary LangGraph node per node file in a complex graph.
+- Small private helpers used only by a node stay with that node.
+- Graph-specific `state`, nodes, tools, routing, and prompts stay inside the graph package.
+- `nodes/__init__.py` may be empty or contain lightweight imports/`__all__`; no business logic or side effects.
+- Do not create a graph package for a graph with only one or two tiny nodes.
 
-Only nodes, tools, or state genuinely reused by multiple graphs should move into `core/langgraph/`.
+### Shared LangGraph infrastructure
 
-Naming convention follows LangGraph official terminology (`graphs/` matches `langgraph.json`'s `graphs` key).
+Create shared LangGraph infrastructure only after multiple graphs genuinely share the same concern:
 
-Compiled graphs may be registered centrally in `graphs/__init__.py` so the API layer can dispatch by graph name.
+```text
+core/
+└── langgraph/
+    ├── checkpoint.py
+    ├── common_state.py
+    └── common_tools.py
+```
 
-### schemas/
+Avoid generic names such as `nodes.py` or `graph.py` in shared infrastructure unless their ownership is obvious. Similar-looking graph-specific nodes are not automatically shared nodes.
 
-Pydantic models for request and response data. Each model owns its own validation (field validators or a `validate()` method). No global `BaseSchema`.
+### `schemas/`
 
-### services/
+Pydantic request/response/application models. Keep validation with the model or domain that owns it.
 
-Business logic that is **not** an agent. Database operations, third-party API calls, orchestration outside of a graph. May call into `models/` for ORM access. **No separate `repositories/` layer** — services talk to `models/` directly via the SQLModel/SQLAlchemy session.
+### `services/`
 
-### models/
+Non-agent application/business logic such as database operations, external service calls, document ingestion, or orchestration outside the graph.
 
-ORM models (`SQLModel`, `SQLAlchemy`). One file per table or aggregate.
+Do not introduce a new `repositories/` layer by default. If the existing project already has repositories, use them consistently rather than bypassing them.
 
-### memory/
+### `models/`
 
-Long-term memory implementations (`mem0`, `pgvector`). Only present if the project uses long-term memory across sessions.
+SQLModel/SQLAlchemy persistence models when the application owns relational persistence.
 
-Same principles as Java — the directory structure organizes code by its role in the application (routes, config, schemas, graphs, services), not by abstract design-layer patterns (interface/impl, domain/infrastructure, strategy/factory).
+### `memory/`
+
+Optional long-term memory implementations such as pgvector/mem0 adapters. Do not create this package unless the application actually uses long-term memory.
+
+## `__init__.py`
+
+Default rule for application packages:
+
+- It may be empty.
+- Use it for lightweight, intentional package-level exports when that improves imports.
+- Do not put database connections, model loading, graph compilation, network calls, or other side effects in `__init__.py`.
+
+Example lightweight export:
+
+```python
+from .retrieve import retrieve
+from .generate_answer import generate_answer
+
+__all__ = ["retrieve", "generate_answer"]
+```
