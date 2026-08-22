@@ -1,12 +1,14 @@
 # Java Guidelines
 
-These are defaults for Java/Spring backend work. Existing project conventions take precedence when they are consistent.
+These are defaults for Java/Spring backend work. Existing project conventions take precedence when they are consistent, but Java business services/components follow the interface-first rules below.
 
-## Mandatory `biz` package rule
+## Business interface rule
 
-If a Java module/package intentionally uses a `biz` business layer, business-behavior components under that layer must use interface + `impl/`, even when there is currently only one implementation.
+Before creating business code, identify the project shape.
 
-Representative structure:
+### Multi-Maven / multi-module project with `*.biz`
+
+When the project has a dedicated Maven business module such as `community.biz`, business-behavior components under that module use interface + `impl/`:
 
 ```text
 com.mware.community.biz/
@@ -18,10 +20,6 @@ com.mware.community.biz/
 │       ├── FavoriteServiceImpl.java
 │       ├── FavoriteRedisStoreImpl.java
 │       └── FavoriteStreamRelayImpl.java
-├── follow/
-│   ├── FollowService.java
-│   └── impl/
-│       └── FollowServiceImpl.java
 └── like/
     ├── LikeService.java
     ├── LikeRedisStore.java
@@ -32,12 +30,33 @@ com.mware.community.biz/
         └── LikeStreamRelayImpl.java
 ```
 
-Required conventions:
+Inside a dedicated `biz` module, apply interface-first design to business-behavior collaborators such as Service, Store, Relay, Manager, Handler, Processor, gateway/client adapters, and similar collaborators.
 
-1. `<Name>.java` in the domain package is the interface/public business contract.
-2. `impl/<Name>Impl.java` is the concrete implementation.
-3. Put `@Service`, `@Component`, `@Repository`-style Spring stereotypes on the implementation, not on the interface.
-4. Constructor injection and field types use the interface:
+### Ordinary monolithic Spring project
+
+When there is no dedicated Maven `*.biz` module, keep business logic under the project's `service/` or `services/` package and also use interface + `impl/`:
+
+```text
+com.example.order/
+├── controller/
+├── service/
+│   ├── OrderService.java
+│   ├── PaymentService.java
+│   └── impl/
+│       ├── OrderServiceImpl.java
+│       └── PaymentServiceImpl.java
+├── mapper/
+└── entity/
+```
+
+Use the existing singular/plural package name rather than renaming a coherent project.
+
+### Required conventions
+
+1. `<Name>.java` is the public business interface.
+2. `impl/<Name>Impl.java` is the implementation.
+3. Put Spring stereotypes such as `@Service` / `@Component` on the implementation.
+4. Inject and depend on the interface type:
 
 ```java
 @Service
@@ -50,57 +69,16 @@ public class CommunityFacade {
 }
 ```
 
-Do not inject or expose:
+Do not inject:
 
 ```java
 private final LikeServiceImpl likeService;
 ```
 
-5. Apply the rule to business-behavior collaborators under `biz`, including names/roles such as `Service`, `Store`, `Relay`, `Manager`, `Handler`, `Processor`, and gateway/client adapters.
-6. Do not force interface + impl onto data-only/framework-definition types: DTO/entity/value objects, enums, exceptions, annotations, configuration classes, constants, and similar non-behavior types.
-7. A single implementation is **not** a reason to skip the interface inside `biz`; the `biz` layer deliberately uses contract-first design for extensibility, replacement, testing, and consistent interception/observability boundaries.
+5. A single implementation is not a reason to skip the interface for Java business services/components governed by this rule.
+6. Do not force interfaces onto DTO/entity/value objects, enums, exceptions, annotations, configuration classes, constants, or other data/framework-definition types.
 
-This rule overrides the greenfield concrete-service default below.
-
-## Service shape outside `biz`
-
-For a greenfield package **outside an interface-first `biz` layer** with one implementation, a concrete service is acceptable:
-
-```java
-@Service
-public class OrderService {
-    public void cancelOrder(Long orderId) {
-        // business logic
-    }
-}
-```
-
-Do not create `OrderService` + `OrderServiceImpl` only because "Spring projects usually do this" when the package is not governed by the `biz` rule and there is no other project convention requiring it.
-
-Use an interface outside `biz` when there is a concrete reason, for example:
-
-- Multiple implementations exist or are expected by an actual requirement.
-- The existing package consistently exposes services through interfaces.
-- The interface is a real module/API boundary.
-- A framework integration or test seam genuinely depends on the contract.
-- The user explicitly requests it.
-
-### Existing interface + `impl/` convention
-
-If neighboring services of the same role consistently use:
-
-```text
-order/service/
-├── OrderService.java
-└── impl/
-    └── OrderServiceImpl.java
-```
-
-follow that convention for a new service of the same role.
-
-Outside `biz`, do not automatically generalize a service-only convention to every helper/validator. Inside `biz`, however, the mandatory business-component interface rule above applies to Service/Store/Relay/Manager/etc.
-
-Callers should depend on public contracts when the project uses them. Do not add direct dependencies on `*Impl` from unrelated packages.
+The goal is a stable contract boundary for extension/replacement, testing, AOP/interception, and observability integration.
 
 ## DTOs
 
@@ -131,60 +109,37 @@ public enum OrderStatus {
 }
 ```
 
-What to avoid is creating generic `CommonConstants`, `CommonEnums`, `ConstantUtil`, or similar containers only to move literals out of one or two call sites.
+Avoid generic `CommonConstants`, `CommonEnums`, `ConstantUtil`, or similar dumping-ground containers.
 
-Prefer ownership-based placement:
+Prefer domain ownership:
 
 ```text
 order/
-├── entity/
-├── dto/
-├── service/
 └── enums/
     └── OrderStatus.java
 ```
-
-rather than a global dumping ground.
 
 ## Repeated logic
 
 Do not extract code merely because two blocks look similar. Extract when they represent the same stable rule/technical concern and a shared owner is clear.
 
-Acceptable local duplication:
-
-```java
-if (quantity == null || quantity <= 0) {
-    throw new IllegalArgumentException("quantity must be greater than 0");
-}
-```
-
-may legitimately appear in two independent request flows.
-
-A shared validator becomes reasonable when several callers must obey exactly the same invariant and inconsistent fixes would be risky.
+A shared validator is reasonable when several callers must obey exactly the same invariant and inconsistent fixes would be risky.
 
 ## Pass-through methods
 
-Avoid wrappers that add no useful boundary or behavior:
+Do not judge a Service/Impl by line count alone.
 
-```java
-public void cancelOrder(Long orderId) {
-    orderManager.cancel(orderId);
-}
-```
-
-A thin method is still legitimate when it intentionally owns a boundary such as:
+A thin implementation is legitimate when it owns a real boundary such as:
 
 - `@Transactional`
 - authorization/security checks
 - metrics/tracing
 - retry/circuit-breaker policy
-- API/application-layer contract
-- adaptation between different models
-- a mandatory `biz` interface contract whose implementation is the stable interception/application boundary
+- API/application contract
+- adaptation between models
+- the project-required business interface boundary
 
-Judge the boundary, not the line count.
-
-Example: this is a legitimate thin `biz` implementation because the interface/implementation pair is an intentional business boundary and the implementation owns transaction/security behavior:
+Example:
 
 ```java
 public interface OrderService {
@@ -207,31 +162,37 @@ public class OrderServiceImpl implements OrderService {
 }
 ```
 
-By contrast, an extra `OrderService -> OrderServiceDelegate -> OrderManager` chain with no added contract/policy is still unnecessary.
+This is not a meaningless pass-through: it owns the business contract plus transaction/security policy.
+
+What remains suspicious is an additional chain with no new responsibility, for example:
+
+```text
+OrderService -> OrderServiceImpl -> OrderServiceDelegate -> OrderManager
+```
+
+when `OrderServiceDelegate` only forwards the call.
 
 ## Inheritance
 
-Prefer composition or concrete classes when inheritance only saves boilerplate. Deep inheritance chains are hard to follow.
-
-Do not apply a fixed numerical rule blindly: framework classes or established domain hierarchies may legitimately be deeper. Flag a hierarchy when understanding a concrete class requires chasing behavior through several project-owned parents with little semantic value.
+Prefer composition or concrete implementation classes when inheritance only saves boilerplate. Flag deep project-owned hierarchies when they hide behavior without adding semantic value.
 
 ## New layers and patterns
 
 Do not introduce these solely for architectural symmetry:
 
-- repository layer when the project currently accesses persistence directly from services
+- an extra repository layer when the project currently uses mapper access directly
 - factory/strategy/template-method classes for a single behavior
 - converter layer for trivial field copies
 - base controller/service/entity hierarchy
-- generic manager/handler/processor wrappers around an already clear service
+- generic manager/handler/processor wrappers around an already clear flow
 
-The Java `biz` interface + `impl/` rule is not considered speculative layering; it is an explicit project contract. Do not use this section to bypass it.
+The required Java business `interface + impl/` pair is not considered speculative layering.
 
-If the project already has one of these layers, preserve and use it instead of bypassing it.
+If the project already has another meaningful layer, preserve and use it instead of bypassing it.
 
 ## When extraction is requested
 
-Place extracted code according to the existing repository structure first. If the project has no convention, prefer domain ownership over generic package names.
+Place extracted code according to the repository's existing structure first. If no convention exists, prefer domain ownership over generic package names.
 
 Examples:
 
@@ -241,4 +202,4 @@ order/enums/OrderStatus.java
 security/JwtTokenService.java
 ```
 
-Use global `common/`, `util/`, or `base/` only when the extracted concern is genuinely cross-domain and that module/package has a clear purpose.
+Use global `common/`, `util/`, or `base/` only when the concern is genuinely cross-domain and the module/package has a clear purpose.
