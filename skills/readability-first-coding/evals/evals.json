@@ -1,101 +1,106 @@
 {
   "skill_name": "readability-first-coding",
-  "description": "Verify the skill produces the correct behavior — no unsolicited abstractions, direct code style, extraction only when explicitly requested.",
+  "description": "Regression cases for project-aware readable backend code: preserve existing architecture, avoid speculative indirection, and use abstractions when they own a real boundary or the user requests them.",
   "evals": [
     {
       "id": 1,
-      "prompt": "给 CreateOrderRequest 和 UpdateOrderRequest 添加相同的参数校验：productId 不能为空，quantity 必须大于 0。",
-      "expected_output": "分别在两个类中各自实现 validate() 方法，不创建公共 Validator、不创建 BaseOrderRequest、不引入任何共享抽象。"
+      "prompt": "新建一个简单的 Spring OrderService，目前只有一个实现，也没有既有 interface+impl 规范。",
+      "expected_output": "优先创建 concrete OrderService，不为了形式创建 OrderService 接口和 OrderServiceImpl。"
     },
     {
       "id": 2,
-      "prompt": "把订单模块和商品模块中重复的 validateProductId 方法抽到 common 包。",
-      "expected_output": "按照用户明确要求，将 validateProductId 抽取到 common 包。只抽取用户指定的内容，不额外增加其他公共类。"
+      "prompt": "这个项目其他 service 都是 XxxService + impl/XxxServiceImpl，新增一个 UserService。",
+      "expected_output": "遵循现有 service 约定，创建 UserService 和 impl/UserServiceImpl；不要据此给无关 helper/validator 也强制创建接口。"
     },
     {
       "id": 3,
-      "prompt": "实现一个订单取消接口：校验订单存在且状态为 PENDING，更新状态为 CANCELLED。",
-      "expected_output": "使用 Controller、DTO（request/response）、Service、Mapper 完成。逻辑直接写在 Service 方法里，不创建状态机、策略模式、领域服务或额外的 handler 层。"
+      "prompt": "订单状态只有 PENDING、PAID、CANCELLED，帮我整理一下。",
+      "expected_output": "允许创建有明确领域含义的 OrderStatus enum；不要因为 skill 反对抽象而把领域状态继续散落成字符串，也不要创建全局 CommonEnums 垃圾桶。"
     },
     {
       "id": 4,
-      "prompt": "写一个 ProductService 查询商品列表。",
-      "expected_output": "创建 concrete ProductService 类，不创建 ProductService 接口 + ProductServiceImpl。方法直接写业务逻辑，从上到下可读。"
+      "prompt": "两个 DTO 都有 productId 非空校验，要不要立刻抽 CommonValidator？",
+      "expected_output": "不因为两段相似代码自动抽公共 Validator；先判断是否是同一稳定规则、是否已有共享所有者、是否真的存在一致性风险。"
     },
     {
       "id": 5,
-      "prompt": "项目里已经有 OrderService 和 ProductService，它们都有 findById 和 findAll 方法，帮我重构一下代码。",
-      "expected_output": "用户说的是’重构’而非’抽取’或’抽取公共’。虽然’重构’不在触发词列表中（已因过于宽泛而移除），但假设技能被其他方式激活，不创建 BaseService 或共享父类。只优化方法内部代码的可读性和直接性，不修改模块结构，不引入任何新的抽象层。"
+      "prompt": "5 个调用方必须使用完全相同的签名校验规则，而且之前出现过修复不同步的问题，帮我重构。",
+      "expected_output": "允许提取一个拥有明确职责的共享签名校验组件，因为存在稳定共享 invariant 和真实一致性风险；不要再额外创建无关 base/framework 层。"
     },
     {
       "id": 6,
-      "prompt": "重构 order-service：把取消订单逻辑中的状态检查抽成独立方法，再建一个 OrderStateManager 管理所有状态流转。",
-      "expected_output": "用户明确要求重构和抽取 → 执行。创建独立方法和 OrderStateManager，但只做用户指定的内容，不顺便添加其他设计模式或额外的抽象层。"
+      "prompt": "这个 Service 方法只有一行调用 manager.cancel()，但是方法上有 @Transactional 和权限切面，这层要删吗？",
+      "expected_output": "不要仅按行数判断为无意义 pass-through；识别事务/安全边界的实际职责，可以保留。"
     },
     {
       "id": 7,
-      "prompt": "Add input validation to CreateUserRequest: username is required, email format check, password min 8 chars.",
-      "expected_output": "Add validate() method directly inside CreateUserRequest class. Do NOT create CommonValidator, BaseUserRequest, or UserValidationUtil."
+      "prompt": "微服务项目已经有 common-api 模块，新增一个跨服务使用的 OrderCreatedEvent。",
+      "expected_output": "沿用现有 common-api 作为稳定消息契约模块；不要另建 base-service，也不要把订单业务实现放进共享模块。"
     },
     {
       "id": 8,
-      "prompt": "Create a REST endpoint to create and update products. Both need similar field validation for name and price.",
-      "expected_output": "Create one Controller class with create() and update() methods. CreateProductRequest and UpdateProductRequest each independently implement their own validate() methods. No shared validator extraction, no shared base DTO, no shared service abstraction unless user explicitly asks."
+      "prompt": "order-service 和 product-service 有两段看起来相似的库存校验，帮我顺便搬进 shared-kernel。",
+      "expected_output": "先区分是否真的是同一跨域规则；如果只是两个服务各自的领域规则，不主动共享。只在用户明确要求且共享边界合理时移动。"
     },
     {
       "id": 9,
-      "prompt": "用 Python 写一个订单取消接口：校验订单存在且状态为 PENDING，更新状态为 CANCELLED。",
-      "expected_output": "创建 FastAPI route 函数或 Django view，逻辑直接写在函数体内。不创建 CancelOrderUseCase、OrderStateMachine、或任何额外的 service 层。使用 dataclass 或 Pydantic model 进行请求校验，逻辑从上到下可读。"
+      "prompt": "新建 FastAPI 项目，用 src layout，帮我给个合理结构。",
+      "expected_output": "使用 src/app/main.py、app/api、app/services 等一致的 Python package 结构；不要出现 src/main.py 却又 from app... 的不一致。"
     },
     {
       "id": 10,
-      "prompt": "写一个 Python ProductService 查询商品列表。",
-      "expected_output": "创建 concrete ProductService 类，不创建 ABC 或 Protocol 基类。方法内直接写业务逻辑，不引入 repository 模式（除非项目已有），不使用依赖注入框架的抽象层。"
+      "prompt": "现有 FastAPI 项目已经有 repositories/，新增订单查询功能。",
+      "expected_output": "继续使用已有 repository 边界，不因为 greenfield 默认不推荐 repository 就绕过它直接访问 ORM。"
     },
     {
       "id": 11,
-      "prompt": "帮我实现一个用户注册接口，要有参数校验。",
-      "expected_output": "这里的‘接口’指 API endpoint，不是 Java interface。创建 Controller + Service + DTO，Service 使用 concrete 类而非 interface+impl。DTO 内直接写 validate() 方法，不创建独立的 Validator 类。"
+      "prompt": "FastAPI async endpoint 里面直接 requests.get() 拉第三方接口，可以吗？",
+      "expected_output": "指出 async def 不会让 blocking I/O 自动异步；优先使用项目已有异步 HTTP client 或既有线程/offload 方案。"
     },
     {
       "id": 12,
-      "prompt": "这段代码可读性不太好，帮我优化一下。",
-      "expected_output": "优化方法内部的可读性（变量命名、提取方法内部的局部变量、减少嵌套、理顺执行顺序）。不修改类结构，不创建新的抽象层，不抽取共享方法。通过标准：不创建新类或接口，不修改方法签名，不抽取共享方法，不引入设计模式。失败标准：创建了新的抽象类/接口，添加了新的设计模式层，修改了公共API签名。"
+      "prompt": "给 FastAPI 登录请求加 username/password 非空校验。",
+      "expected_output": "优先使用 Pydantic Field/validator 在 schema 层表达输入约束，而不是把所有校验塞进 route 或新造 CommonValidator。"
     },
     {
       "id": 13,
-      "prompt": "整理一下项目结构，把 DTO 都放到 dto 包下面。",
-      "expected_output": "用户明确要求重组目录 → 执行移动操作。但不顺便创建 common 包、不添加 base DTO、不引入任何新的模块或抽象。只做用户要求的目录重组。"
+      "prompt": "LangGraph 只有 retrieve 和 answer 两个很短的 node，怎么组织？",
+      "expected_output": "允许保持单文件 graph，state/node/routing/composition 都可放在一起，只要整体仍清楚；不要为了目录漂亮强制拆包。"
     },
     {
       "id": 14,
-      "prompt": "用 Python 写一个 FastAPI endpoint 处理用户登录，校验 username 和 password 不能为空。",
-      "expected_output": "创建 route 函数，校验逻辑直接写在函数体内。不创建 LoginUseCase、AuthService interface、或 PasswordValidator 工具类。使用 Pydantic model 进行请求体校验，逻辑从上到下可读。"
+      "prompt": "LangGraph 已经有 plan、retrieve、grade、rewrite、generate 五个主要 node，graph.py 越来越长。",
+      "expected_output": "改为 graph package：graph.py + state.py + nodes/，主要 node 按文件拆分；nodes/__init__.py 只做空文件或轻量导出。"
     },
     {
       "id": 15,
-      "prompt": "Python 项目里 OrderService 和 ProductService 都有 find_by_id 和 save 方法，帮我抽取公共代码。",
-      "expected_output": "用户明确要求抽取公共 → 执行。但只抽取用户指定的 find_by_id 和 save，不顺便创建 BaseService ABC 或引入 repository 模式（除非项目已有）。抽取后的代码保持直接可读。"
+      "prompt": "research_graph 和 support_graph 都有一个名字叫 search 的 node，但使用的 state 和语义不同，要不要抽到 core/langgraph？",
+      "expected_output": "不要仅因名字/代码相似就共享；graph-specific node 保持在各自 graph 中。"
     },
     {
       "id": 16,
-      "prompt": "这个 Python 类用了三层继承 A → B → C，帮我看看能不能简化。",
-      "expected_output": "识别并报告深层继承链。建议扁平化为 1-2 层，除非用户明确需要此层次结构。简化方案不引入新的 ABC 或 mixin。"
+      "prompt": "三个 graph 都调用完全相同的 checkpoint 配置和公共审计工具，应该放哪里？",
+      "expected_output": "允许将真正跨 graph 的 checkpoint/审计基础设施放入 core/langgraph 或项目已有共享基础设施位置，名称应体现职责。"
     },
     {
       "id": 17,
-      "prompt": "Python service 里有一个方法只是简单调用了另一个方法，没有额外逻辑，合理吗？",
-      "expected_output": "识别为 pass-through 方法。建议内联到调用处，删除该包装方法。不创建新的抽象层来'修复'这个问题。"
+      "prompt": "LangGraph 的 should_continue 里面顺便调用 LLM、查数据库再决定路由。",
+      "expected_output": "建议 routing function 聚焦路由判断；实质性 LLM/数据库工作放进 node，再让路由基于 state 决策。"
     },
     {
       "id": 18,
-      "prompt": "项目里其他 service 都用了 interface + XxxServiceImpl 的模式，帮我新增一个 UserService。",
-      "expected_output": "遵循项目已有的 interface+impl 模式。创建 UserService 接口和 UserServiceImpl 实现类，与项目现有风格保持一致。"
+      "prompt": "我把所有 LangGraph node 都加 @tool，这样是不是更统一？",
+      "expected_output": "区分 tool 与 node：只有需要由模型选择/调用的能力才是 tool；普通 graph execution step 不应为了统一而加 @tool。"
     },
     {
       "id": 19,
-      "prompt": "测试代码里有 5 个 test class 都有相同的 setUp 逻辑，可以提取一个公共的 BaseTest 吗？",
-      "expected_output": "测试代码豁免：允许提取公共 BaseTest 类和 setUp 方法，因为 3+ 个测试类共享相同逻辑。但不引入深层继承链。"
+      "prompt": "在 nodes/__init__.py 里初始化模型、连接数据库并 compile graph，方便 import。",
+      "expected_output": "拒绝把这些副作用放进 __init__.py；__init__.py 保持空或轻量导出，初始化/compile 放在明确的 composition/runtime 边界。"
+    },
+    {
+      "id": 20,
+      "prompt": "用户明确要求把两个 service 的重复签名校验抽成一个公共组件。",
+      "expected_output": "执行用户要求的抽取，并让组件拥有清晰职责；skill 不应以“禁止抽象”为理由拒绝显式重构需求，也不要顺便扩展成一整套 base framework。"
     }
   ]
 }
