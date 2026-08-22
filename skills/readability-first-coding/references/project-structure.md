@@ -4,35 +4,82 @@ Directory layouts in this file are **starting points, not mandatory scaffolds**.
 
 ## Java Backend
 
-A common Spring backend shape is:
+### Ordinary monolithic Spring project
+
+For a normal single-module Spring Boot application, keep business services under `service/` or the repository's existing `services/` package, and use interface + `impl/`:
 
 ```text
-com.example.project
-├── controller
-├── dto
-│   ├── request
-│   └── response
-├── service
-├── mapper
-├── entity
-├── config
-└── exception
+com.example.project/
+├── controller/
+├── dto/
+│   ├── request/
+│   └── response/
+├── service/
+│   ├── OrderService.java
+│   ├── UserService.java
+│   └── impl/
+│       ├── OrderServiceImpl.java
+│       └── UserServiceImpl.java
+├── mapper/
+├── entity/
+├── config/
+└── exception/
 ```
 
-Optional domain-specific packages such as `enums/`, `event/`, `validation/`, or `client/` should be added only when the domain actually needs them.
+Responsibilities:
 
-### Responsibilities
-
-- `controller/` — HTTP boundary: parse/validate request, call application/service logic, return response.
+- `controller/` — HTTP boundary: parse/validate request, call service contract, return response.
 - `dto/request/` — incoming API models.
 - `dto/response/` — outgoing API models.
-- `service/` — business/application logic.
+- `service/` / `services/` — business contracts; implementations live in `impl/`.
 - `mapper/` — persistence access when using MyBatis/MyBatis-Plus style mappers.
 - `entity/` — persistence models.
 - `config/` — framework/infrastructure configuration.
 - `exception/` — project/domain exceptions when they have clear ownership.
 
-Do not create every package just because it appears in this example.
+Use the existing singular/plural service package name; do not rename a coherent project only to match the example.
+
+### Multi-Maven / multi-module project with dedicated `*.biz`
+
+When a multi-module Maven project separates business logic into modules such as `community.biz`, the `biz` module owns business contracts and implementations:
+
+```text
+middleware-arena-community/
+├── community.dto/
+├── community.web/
+└── community.biz/
+    └── src/main/java/com/mware/community/biz/
+        ├── favorite/
+        │   ├── FavoriteService.java
+        │   ├── FavoriteRedisStore.java
+        │   ├── FavoriteStreamRelay.java
+        │   └── impl/
+        │       ├── FavoriteServiceImpl.java
+        │       ├── FavoriteRedisStoreImpl.java
+        │       └── FavoriteStreamRelayImpl.java
+        ├── follow/
+        │   ├── FollowService.java
+        │   └── impl/
+        │       └── FollowServiceImpl.java
+        └── like/
+            ├── LikeService.java
+            ├── LikeRedisStore.java
+            ├── LikeStreamRelay.java
+            └── impl/
+                ├── LikeServiceImpl.java
+                ├── LikeRedisStoreImpl.java
+                └── LikeStreamRelayImpl.java
+```
+
+Rules:
+
+- Interfaces stay in the domain package.
+- Implementations stay in that domain package's `impl/`.
+- Other packages/modules depend on interface types, not `*Impl`.
+- In a dedicated `biz` module, apply this pattern to business-behavior collaborators such as Service, Store, Relay, Manager, Handler, Processor, and adapters.
+- DTO/entity/enums/config/exceptions are not forced into interface + impl pairs.
+
+Optional domain-specific packages such as `enums/`, `event/`, `validation/`, or `client/` should be added only when the domain actually needs them.
 
 ## Java Microservices
 
@@ -47,6 +94,8 @@ project-parent/
 ```
 
 The shared module may already be named `base-service`, `common`, `common-api`, `platform-core`, etc. Follow the repository's existing name instead of inventing or renaming it.
+
+If an individual microservice is a normal Spring module, use its `service/` + `impl/` business structure. If the Maven project instead separates a dedicated `*.biz` module, use the `biz` layout described above.
 
 See `microservice-guidelines.md` for cross-service rules.
 
