@@ -20,6 +20,7 @@ For correct solutions, prefer:
 
 ```text
 Existing project consistency
+> Explicit project constraints
 > Easy to understand
 > Directness
 > Easy to modify
@@ -31,15 +32,45 @@ Existing project consistency
 
 Correctness is mandatory. Existing project conventions take precedence over this skill's defaults when they are consistent and relevant to the code being changed.
 
+## Mandatory Java `biz` contract rule
+
+Java modules/packages that intentionally use a `biz` business layer are an explicit exception to the greenfield "single implementation may use a concrete class" default.
+
+Inside a Java `*.biz` business layer, Spring-managed/business-behavior components must be interface-first even when there is currently only one implementation:
+
+```text
+com.example.community.biz.favorite/
+├── FavoriteService.java
+├── FavoriteRedisStore.java
+├── FavoriteStreamRelay.java
+└── impl/
+    ├── FavoriteServiceImpl.java
+    ├── FavoriteRedisStoreImpl.java
+    └── FavoriteStreamRelayImpl.java
+```
+
+Rules:
+
+- Public business contract lives in the domain package.
+- Concrete implementation lives under that domain package's `impl/` subpackage.
+- Naming is `<Name>` for the interface and `<Name>Impl` for the implementation.
+- Spring annotations such as `@Service` / `@Component` belong on the implementation.
+- Other components depend on and inject the interface type, not `*Impl`.
+- Apply this to business-behavior components such as Service, Store, Relay, Manager, Handler, Processor, gateway/client adapters, and similar collaborators under `biz`.
+- Do not force interfaces onto data-only or framework-definition types such as DTO/entity/value objects, enums, exceptions, annotations, configuration classes, or simple constants.
+
+The purpose is a stable business contract boundary for replacement, extension, testing, AOP/interception, and observability integration. The interface itself does not create metrics; it provides a consistent boundary where those concerns can be attached.
+
 ## Default behavior
 
 1. Read the existing package/module structure before changing code.
 2. Make the smallest coherent change that completes the requested behavior.
 3. Keep business decisions close to where they are used.
-4. Do not introduce a new layer, base class, interface, shared package, factory, strategy, wrapper, or helper solely to reduce line count.
+4. Do not introduce a new layer, base class, interface, shared package, factory, strategy, wrapper, or helper solely to reduce line count, **except where an explicit project rule such as the Java `biz` interface contract requires it**.
 5. Preserve existing architectural boundaries. Do not flatten an established repository/service/interface pattern just because this skill would not create it in a greenfield project.
-6. Do not modify unrelated code or reorganize unrelated packages.
-7. Prefer explicit control flow and clear names over clever syntax.
+6. In Java `*.biz` modules, enforce the mandatory interface + `impl/` contract rule above.
+7. Do not modify unrelated code or reorganize unrelated packages.
+8. Prefer explicit control flow and clear names over clever syntax.
 
 ## Abstraction gate
 
@@ -49,6 +80,7 @@ Good reasons include:
 
 - The user explicitly asks for extraction or reuse.
 - The project already has an established abstraction and the new code clearly belongs in it.
+- The code is inside a Java `*.biz` layer where interface-first business components are a mandatory project convention.
 - Multiple implementations genuinely need one contract.
 - Several callers share the same stable technical concern or invariant and keeping separate copies would create a real consistency risk.
 - A framework/API boundary requires the abstraction.
@@ -76,8 +108,9 @@ Do not load every reference file by default.
 When reviewing existing code, distinguish between:
 
 - **Existing convention**: consistent architecture already used by the project. Preserve it unless the user asks to change it.
+- **Explicit project constraint**: a mandatory structural rule such as Java `*.biz` interface-first components. Enforce it even when a single implementation would otherwise be acceptable.
 - **Necessary complexity**: transactions, security boundaries, domain state, integration boundaries, concurrency, or multiple implementations that justify additional structure.
-- **Abstraction smell**: indirection that adds files/call hops without owning meaningful behavior.
+- **Abstraction smell**: indirection that adds files/call hops without owning meaningful behavior and is not required by an explicit project rule.
 
 When the user asks to refactor, refactor toward the stated goal. Do not use "readability first" as a reason to reject a requested extraction or redesign.
 
@@ -92,7 +125,7 @@ See `references/python-guidelines.md` and `references/project-structure.md` for 
 
 ## Automated checker
 
-`scripts/check-abstraction-smell.py` is a best-effort heuristic, not an architectural authority. Treat its findings as review prompts, not automatic failures. Existing conventions and explicit user requirements may legitimately trigger warnings.
+`scripts/check-abstraction-smell.py` is a best-effort heuristic, not an architectural authority. Treat its findings as review prompts, not automatic failures. Existing conventions, explicit project requirements, and Java `*.biz` interface contracts may legitimately trigger warnings.
 
 Run when useful:
 
@@ -105,7 +138,9 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/check-abstraction-smell.py . --lang auto
 Before finishing:
 
 - Does the change follow the surrounding project structure?
-- Is each new file/package/layer necessary for a concrete reason?
+- If this is a Java `*.biz` module, are business components exposed as interfaces with implementations under `impl/`?
+- Do callers depend on interfaces rather than `*Impl` inside the `biz` layer?
+- Is each new file/package/layer necessary for a concrete reason or explicit project constraint?
 - Can the main flow be understood without unnecessary cross-file jumps?
 - Did the change introduce a generic dumping-ground module?
 - Did it modify unrelated code?
