@@ -58,14 +58,22 @@ src/
 │   ├── config.py                 # pydantic-settings, reads from env / .env
 │   ├── llm.py                    # LLM client wrappers (ChatOpenAI, etc.)
 │   ├── middleware.py
-│   └── langgraph/                # LangGraph infrastructure (shared across graphs)
-│       ├── state.py              # State / TypedDict definitions
-│       ├── nodes.py              # Reusable node functions
-│       ├── tools.py              # @tool decorated functions
-│       └── graph.py              # Graph composition helpers
+│   └── langgraph/                # LangGraph infrastructure shared across graphs
+│       ├── state.py              # Shared State / TypedDict definitions
+│       ├── nodes.py              # Small set of nodes genuinely reused by graphs
+│       ├── tools.py              # Shared @tool functions
+│       └── graph.py              # Shared graph composition helpers
 ├── graphs/                       # LangGraph agent implementations
 │   ├── __init__.py               # Registry mapping graph_id -> compiled graph
-│   └── {agent_name}.py           # One compiled StateGraph per file
+│   ├── {simple_agent}.py         # Small graph: graph + graph-specific nodes may stay together
+│   └── {complex_agent}/          # Complex graph: split meaningful nodes by file
+│       ├── __init__.py
+│       ├── graph.py
+│       └── nodes/
+│           ├── __init__.py       # Optional lightweight exports only
+│           ├── plan.py
+│           ├── retrieve.py
+│           └── generate.py
 ├── schemas/                      # Pydantic request/response models
 ├── services/                     # Non-agent business logic
 ├── models/                       # ORM models (SQLModel / SQLAlchemy)
@@ -100,19 +108,49 @@ LLM client wrappers. One factory per provider (OpenAI, Anthropic, etc.). Returns
 
 ### core/langgraph/
 
-Shared LangGraph infrastructure used by multiple graphs:
-- `state.py` — `TypedDict` or `BaseModel` defining the state shape consumed by nodes.
-- `nodes.py` — Reusable node functions (LLM call, tool execution, routing).
-- `tools.py` — `@tool` decorated functions exposed to the agent.
-- `graph.py` — Graph composition helpers (e.g., building tool-calling loops).
+Infrastructure genuinely shared by multiple LangGraph agents:
+- `state.py` — state types consumed across multiple graphs.
+- `nodes.py` — a small set of node functions genuinely reused by multiple graphs.
+- `tools.py` — `@tool` decorated functions exposed across multiple agents.
+- `graph.py` — graph composition helpers used across multiple graphs.
+
+Do not move graph-specific nodes here simply because they look reusable or similar.
 
 ### graphs/
 
-**One compiled `StateGraph` per file.** Each file is self-contained: imports its state, nodes, and tools from `core/langgraph/`, builds the graph, and exports the compiled result.
+Each agent owns one compiled `StateGraph`.
+
+For a **small graph**, keep it in one file. Graph-specific nodes may remain next to the graph composition when that makes the complete flow easier to read:
+
+```
+graphs/
+└── research_assistant.py
+```
+
+For a **complex graph** with several meaningful nodes, use a graph package and split different nodes into separate files:
+
+```
+graphs/
+└── research_assistant/
+    ├── __init__.py
+    ├── graph.py
+    └── nodes/
+        ├── __init__.py
+        ├── plan.py
+        ├── retrieve.py
+        ├── grade_documents.py
+        └── generate_answer.py
+```
+
+`nodes/__init__.py` is not a business-logic file. It may remain empty, or provide lightweight imports / `__all__` so `graph.py` can use a clean package-level import. Do not add side effects or initialization work there.
+
+Prefer one primary LangGraph node per node file. Small helpers used only by that node may stay in the same file.
+
+Only nodes, tools, or state genuinely reused by multiple graphs should move into `core/langgraph/`.
 
 Naming convention follows LangGraph official terminology (`graphs/` matches `langgraph.json`'s `graphs` key).
 
-Registered centrally in `graphs/__init__.py` so the API layer can dispatch by graph name.
+Compiled graphs may be registered centrally in `graphs/__init__.py` so the API layer can dispatch by graph name.
 
 ### schemas/
 
