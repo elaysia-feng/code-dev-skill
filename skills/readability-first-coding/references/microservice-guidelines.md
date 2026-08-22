@@ -1,39 +1,29 @@
 # Java Microservice Guidelines
 
-This file covers microservice-specific conventions. For core readability-first principles and non-microservice defaults, see [SKILL.md](../SKILL.md).
+Use this file together with `java-guidelines.md`. Existing repository conventions take precedence.
 
-## Service Organization
+## Service ownership
 
-```
-project-parent
-├── base-service          (only if already present or user requests it)
-├── order-service
-├── product-service
-└── user-service
-```
+Each service should own its domain behavior and data contracts unless the system already defines a shared contract module.
 
-Each service uses its own business package:
+Example:
 
-```
-com.example.order.controller
-com.example.order.dto.request
-com.example.order.dto.response
-com.example.order.service
-com.example.order.mapper
-com.example.order.entity
+```text
+project-parent/
+├── order-service/
+├── product-service/
+├── user-service/
+└── common-api/              # optional, only when genuinely shared
 ```
 
-```
-com.example.product.controller
-com.example.product.dto.request
-com.example.product.dto.response
-com.example.product.service
-```
+Do not assume the shared module must be named `base-service`. Existing projects may use `common`, `common-api`, `platform-core`, `shared-kernel`, or no shared module at all.
 
-Internal structure per service:
+## Inside one service
 
-```
-com.example.{service-name}
+Follow that service's existing structure. A common Spring shape is:
+
+```text
+com.example.order
 ├── controller
 ├── dto
 │   ├── request
@@ -45,38 +35,72 @@ com.example.{service-name}
 └── config
 ```
 
-## Cross-Service Duplication
+Do not create every package by default.
 
-Do **not** move repeated business logic from individual services into `base-service` on your own.
+## Cross-service duplication
 
-Even if `order-service` and `product-service` both have similar validation or similar exception types, keep each service's copy independent — unless the user explicitly requests consolidation.
+Similar code in two services is not automatically shared code.
 
-## base-service Rules
+Keep logic local when it represents separate domain rules that may evolve independently.
 
-In microservice projects, shared code lives in `base-service` instead of `common/` (see SKILL.md for the non-microservice convention). If the project structure requires `base-service` to exist, keep it minimal.
+Extract/shared-contract code when there is a real system-wide invariant or protocol, for example:
 
-When the user asks for a unified response wrapper, create only:
+- authentication/JWT contract used by several services
+- common tracing/observability integration
+- stable event/message schema
+- generated API client contract
+- organization-wide response/error protocol already adopted by the project
 
+Do not move order/product/user business rules into a shared module merely to remove duplication.
+
+## Shared modules
+
+If a shared module already exists, preserve its scope and naming.
+
+Good shared-module contents may include stable technical contracts such as:
+
+```text
+common-api/
+├── auth/
+│   └── UserContext.java
+├── event/
+│   └── OrderCreatedEvent.java
+└── response/
+    └── ApiResponse.java
 ```
-base-service
-└── response
-    └── Result.java
-```
 
-Do **not** add any of these without explicit user request:
+Avoid generic inheritance frameworks such as:
 
 - `BaseController`
 - `BaseService`
 - `BaseMapper`
 - `BaseEntity`
-- `BaseRequest`
-- `BaseResponse`
-- `CommonException`
 - `AbstractConverter`
-- Any business logic belonging to order, product, or user domains
 
-Every addition to `base-service` must be backed by a direct user request.
+unless they are already part of the project's architecture or the user explicitly asks for them.
 
-## Service Communication
+## Service communication
 
-Implement cross-service calls directly where needed. Do not introduce an API gateway, service mesh abstraction, or event bus unless the user explicitly requires it for the current task.
+Choose communication based on the requirement and existing architecture; do not introduce infrastructure just because the project is a microservice system.
+
+Typical choices:
+
+- synchronous request/response for immediate queries or commands that need an immediate result
+- message broker/event for asynchronous workflows, decoupling, fan-out, or eventual consistency
+- gateway for external traffic routing when the system already has/needs one
+
+Do not replace an existing Feign/WebClient/MQ pattern with another style without a requirement.
+
+## Transactions and consistency
+
+Do not assume a local database transaction can provide atomicity across services.
+
+When a workflow spans services, preserve the architecture already chosen by the system (event-driven consistency, outbox, saga/compensation, Seata, etc.). Introduce a distributed-transaction mechanism only when the task actually requires cross-service consistency and the trade-off is justified.
+
+## DTO/entity boundaries
+
+Do not expose one service's persistence entity as another service's contract. Cross-service APIs/events should use explicit contract DTOs or schemas owned by the integration boundary.
+
+## Configuration and infrastructure
+
+Do not create wrappers around Redis, RabbitMQ, Kafka, HTTP clients, or service discovery merely to hide one library call. Create an adapter/service when it owns meaningful configuration, retries, serialization, error translation, observability, or a stable integration boundary.
