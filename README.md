@@ -4,9 +4,9 @@ A project-aware coding skill for **Java/Spring**, **Java microservices**, **Pyth
 
 The goal is not "never abstract". The rule is:
 
-> Prefer the simplest structure that fits the real project, and require a concrete reason before adding indirection.
+> Prefer the simplest structure that fits the real project, while enforcing explicit project conventions such as Java business interface contracts.
 
-Existing project conventions take precedence over greenfield defaults.
+Existing project conventions take precedence over generic defaults.
 
 ## Install
 
@@ -75,6 +75,7 @@ Exit codes:
 
 ```text
 Existing project consistency
+> Explicit project constraints
 > Easy to understand
 > Directness
 > Easy to modify
@@ -84,32 +85,49 @@ Existing project consistency
 > Architectural elegance
 ```
 
-The skill does **not** blindly reject interfaces, repositories, shared modules, enums, factories, or thin boundaries. It rejects them when they add indirection without owning meaningful behavior.
+The skill does **not** blindly reject repositories, shared modules, enums, factories, or thin boundaries. It rejects indirection that has no project rule or meaningful responsibility.
 
-Concrete reasons for abstraction include:
+## Java business contract rule
 
-- an existing project convention
-- multiple real implementations
-- a stable shared invariant/technical concern
-- a framework/integration boundary
-- an explicit user request
+Java business code is interface-first, but the physical structure depends on the project type.
 
-## Java defaults
+### Ordinary monolithic Spring project
 
-For a new/simple Spring package with one implementation, a concrete service is enough:
+Use `service/` or the repository's existing `services/` package:
 
-```java
-@Service
-public class OrderService {
-    public void cancelOrder(Long orderId) {
-        // business logic
-    }
-}
+```text
+service/
+├── OrderService.java
+├── UserService.java
+└── impl/
+    ├── OrderServiceImpl.java
+    └── UserServiceImpl.java
 ```
 
-If the surrounding project consistently uses `Service` + `ServiceImpl` for services, the skill follows that convention instead of fighting it.
+Controllers and other callers depend on `OrderService`, not `OrderServiceImpl`.
 
-Domain enums are valid when they model real states:
+### Multi-Maven project with dedicated `*.biz`
+
+When business logic is separated into a Maven module such as `community.biz`, keep contracts and implementations inside each business domain:
+
+```text
+community.biz/
+└── src/main/java/com/mware/community/biz/
+    └── like/
+        ├── LikeService.java
+        ├── LikeRedisStore.java
+        ├── LikeStreamRelay.java
+        └── impl/
+            ├── LikeServiceImpl.java
+            ├── LikeRedisStoreImpl.java
+            └── LikeStreamRelayImpl.java
+```
+
+Inside a dedicated `biz` module, the interface-first rule also covers business-behavior collaborators such as Store, Relay, Manager, Handler, Processor, and adapters.
+
+DTOs, entities, enums, exceptions, configuration classes, and constants do not need meaningless interface wrappers.
+
+Domain enums are still valid when they model real states:
 
 ```java
 public enum OrderStatus {
@@ -211,7 +229,7 @@ code-dev-skill/
 
 ### `SKILL.md`
 
-Small source-of-truth entry point: priorities, abstraction gate, workflow, and reference routing.
+Small source-of-truth entry point: priorities, Java business contracts, abstraction gate, workflow, and reference routing.
 
 ### `references/`
 
@@ -219,7 +237,7 @@ Detailed rules loaded only when relevant:
 
 | File | Purpose |
 |---|---|
-| `java-guidelines.md` | Java/Spring conventions |
+| `java-guidelines.md` | Java/Spring interface-first business conventions |
 | `python-guidelines.md` | FastAPI + LangGraph conventions |
 | `microservice-guidelines.md` | Cross-service boundaries and shared-code rules |
 | `project-structure.md` | Directory/package layouts |
@@ -241,7 +259,7 @@ python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --l
 python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang auto
 ```
 
-The checker is intentionally heuristic. Existing project conventions and explicitly requested abstractions can legitimately produce warnings.
+The checker is intentionally heuristic. Existing project conventions and explicitly required business interfaces can legitimately produce warnings.
 
 ## License
 
