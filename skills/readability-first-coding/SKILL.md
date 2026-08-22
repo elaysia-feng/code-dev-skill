@@ -1,216 +1,112 @@
 ---
 name: readability-first-coding
 description: >-
-  Use this skill when implementing, modifying, reviewing, or refactoring Java or Python backend code.
-  Prioritize readable and direct code, avoid unsolicited abstractions, and preserve duplicated business
-  logic unless the user explicitly requests extraction or reuse.
-model: sonnet
-triggers:
-  - 可读性优先
-  - 易读懂优先
-  - 不要抽取
-  - 不要抽象
-  - 不要DRY
-  - 不要公共模块
-  - 保持重复
-  - readability first
-  - 不要过度设计  # activates the same readability-first workflow: prevents over-engineering and unsolicited abstractions
-  - 抽取公共
-  - common模块
-  - 公共模块
-argument-hint: "[project language or context, e.g. Java, Python (FastAPI + LangGraph), or Java microservices]"
-allowed-tools: Read,Write,Edit,Glob,Grep,Bash,Task,Agent,LSP
+  Coding conventions for real Java backend, Java microservice, and Python backend
+  (FastAPI + LangGraph) implementation, modification, review, and refactoring work.
+  Preserve existing project conventions, prefer direct readable code, avoid speculative
+  layers and abstractions, and extract shared code only when there is a concrete reason
+  beyond reducing duplicated lines.
 license: MIT
+compatibility: >-
+  Intended for Java/Spring backend, Java microservice, Python backend, FastAPI, and
+  LangGraph application projects. Detailed rules are provided in references/.
 ---
 
-> **Warning:** `Task` and `Agent` are listed in `allowed-tools` for orchestration purposes, but sub-agents spawned via these tools may not automatically inherit this skill's readability-first constraints. Ensure sub-agents are explicitly instructed to follow the same rules.
+# Readability First Coding
 
-# Core Principle
+## Priority
 
-Readable code is the highest priority. Easy to understand beats everything.
+For correct solutions, prefer:
 
-Correctness is always mandatory and never compromised — readability never justifies bugs.
-
-For style/structure decisions (given correctness):
-
-```
-Easy to understand
+```text
+Existing project consistency
+> Easy to understand
 > Directness
 > Easy to modify
+> Fewer unnecessary dependencies
 > Less duplication
 > Reusability
-> Abstraction
-> Architectural beauty
+> Architectural elegance
 ```
 
-# Default Behavior
+Correctness is mandatory. Existing project conventions take precedence over this skill's defaults when they are consistent and relevant to the code being changed.
 
-- Implement only what the user requested.
-- Keep business logic close to where it is used.
-- Allow duplicated code by default.
-- Do not extract repeated logic unless explicitly asked.
-- Do not create `common`, `util`, `utils`, `shared`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` modules on your own (unless the user explicitly requests extraction — see "When Extraction IS Requested" below). `core/` is acceptable **only** in FastAPI + LangGraph projects where it holds infrastructure files (`config.py`, `llm.py`, `middleware.py`, `langgraph/`); do not use it as a general-purpose dumping ground.
-- Do not modify unrelated code.
+## Default behavior
 
-# The Abstraction Gate
+1. Read the existing package/module structure before changing code.
+2. Make the smallest coherent change that completes the requested behavior.
+3. Keep business decisions close to where they are used.
+4. Do not introduce a new layer, base class, interface, shared package, factory, strategy, wrapper, or helper solely to reduce line count.
+5. Preserve existing architectural boundaries. Do not flatten an established repository/service/interface pattern just because this skill would not create it in a greenfield project.
+6. Do not modify unrelated code or reorganize unrelated packages.
+7. Prefer explicit control flow and clear names over clever syntax.
 
-Before extracting any code, ask internally:
+## Abstraction gate
 
-> **Did the user explicitly request this abstraction?**
+Before creating or extracting an abstraction, require a concrete reason beyond "these lines look similar".
 
-If the answer is **No** → do not extract. No matter how many times the code repeats.
+Good reasons include:
 
-> **Note:** The Gate prevents unsolicited abstractions. If the user explicitly requests extraction, proceed with the extraction — the Gate does not block it.
+- The user explicitly asks for extraction or reuse.
+- The project already has an established abstraction and the new code clearly belongs in it.
+- Multiple implementations genuinely need one contract.
+- Several callers share the same stable technical concern or invariant and keeping separate copies would create a real consistency risk.
+- A framework/API boundary requires the abstraction.
 
-# Language-Specific Rules & References
+If none applies, keep the logic local even when some code repeats.
 
-| Language / Context | Reference File |
+Do not create generic `common`, `util`, `utils`, `shared`, `base`, `framework`, `helpers`, `support`, or `infrastructure` packages as dumping grounds. If an existing project already uses one of these packages, place code there only when its ownership is clear and consistent with neighboring code.
+
+## Reference routing
+
+Load only the references relevant to the task before implementing structural changes:
+
+| Context | Read |
 |---|---|
-| Java backend | `references/java-guidelines.md` |
-| Python backend (FastAPI + LangGraph) | `references/python-guidelines.md` |
-| Java microservices | `references/microservice-guidelines.md` |
-| Directory layout | `references/project-structure.md` |
-| Good/Bad examples | `references/examples.md` |
+| Java backend / Spring Boot | `references/java-guidelines.md` |
+| Python backend / FastAPI / LangGraph | `references/python-guidelines.md` |
+| Java microservices | `references/microservice-guidelines.md` plus `references/java-guidelines.md` |
+| Creating or changing directories/modules | `references/project-structure.md` |
+| Unsure about preferred shape | `references/examples.md` |
 
-When starting work in a supported language, use Read to load the corresponding reference file before implementing code — this ensures the language-specific guidelines are in context.
+Do not load every reference file by default.
 
-# Agent Workflow
+## Review and refactor behavior
 
-When receiving a development task:
+When reviewing existing code, distinguish between:
 
-1. Read existing code structure first.
-2. Implement within the existing structure.
-3. Prefer completing work in the current file or module.
-4. Even if you see duplicated code, do not extract it.
-5. Do not modify unrelated code.
-6. Do not introduce new architectural layers.
-7. Do not create new shared modules.
-8. Do not propose complex alternatives unless the task genuinely demands them.
-9. Only analyze shared logic when the user explicitly requests refactoring.
-10. Confirm the final code is easy to read top-to-bottom (see [Final Checks](#final-checks)).
+- **Existing convention**: consistent architecture already used by the project. Preserve it unless the user asks to change it.
+- **Necessary complexity**: transactions, security boundaries, domain state, integration boundaries, concurrency, or multiple implementations that justify additional structure.
+- **Abstraction smell**: indirection that adds files/call hops without owning meaningful behavior.
 
-**Existing project conventions:** If the project already consistently uses interface+impl, abstract base classes, or other abstraction patterns, follow that convention — do not break consistency. Readability-first principles take precedence for new code and new modules, and in areas where the existing convention is inconsistent or absent.
+When the user asks to refactor, refactor toward the stated goal. Do not use "readability first" as a reason to reject a requested extraction or redesign.
 
-**Java projects using `<Name>` + `impl/<Name>Impl` layout:** When the project adopts this convention, follow it for **every** new class in that package — do not break the layout by introducing a single concrete-only class while siblings have interfaces. See [references/java-guidelines.md](references/java-guidelines.md) § Interface + impl/ Layout Convention.
+## LangGraph rule of thumb
 
-# Code Writing Rules
+- Small graph: graph-specific state/nodes/tools may stay together when the complete flow remains easy to read.
+- Complex graph: split meaningful nodes into separate files under that graph's package.
+- Put state/nodes/tools in shared `core/langgraph/` only when they are genuinely shared by multiple graphs.
+- `__init__.py` may remain empty or provide lightweight exports. Do not put business logic or side effects in it.
 
-- Method names directly express their purpose.
-- Variable names are clear and complete.
-- Business flow reads top-to-bottom.
-- Avoid deep nesting.
-- Avoid meaningless wrappers.
-- Avoid requiring cross-file jumps to understand simple logic.
-- Avoid complex syntax just to save a few lines.
-- Avoid overusing inheritance, generics, reflection, or design patterns.
-- Critical business decisions are written inline.
-- A single file should tell the main story on its own.
+See `references/python-guidelines.md` and `references/project-structure.md` for the detailed layout.
 
-Prefer direct code:
+## Automated checker
 
-```java
-OrderEntity order = orderMapper.selectById(orderId);
-if (order == null) {
-    throw new OrderNotFoundException(orderId);
-}
-if (!order.getStatus().equals("PENDING")) {
-    throw new IllegalStateException("Only pending orders can be cancelled");
-}
-order.setStatus("CANCELLED");
-orderMapper.updateById(order);
-```
+`scripts/check-abstraction-smell.py` is a best-effort heuristic, not an architectural authority. Treat its findings as review prompts, not automatic failures. Existing conventions and explicit user requirements may legitimately trigger warnings.
 
-Do NOT default to layered call chains:
-
-```java
-orderValidator.validateCancelable(order);
-orderStateMachine.fire(order, OrderEvent.CANCEL);
-orderDomainService.cancel(order);
-orderRepository.save(order);
-```
-
-# When Extraction IS Requested
-
-These rules apply only when the user explicitly asks to extract shared code:
-
-| Shared Content | Location |
-|---|---|
-| Shared DTOs, exceptions, enums, response wrappers | `common/` |
-| Stateless utilities (DateUtil, StringUtil, JsonUtil) | `util/` |
-| Explicitly requested base classes | `base/` |
-
-Only extract what the user specified. Do not "also add" extra framework classes.
-
-> **Microservice exception:** In microservice projects, shared code lives in `base-service/` instead of `common/` — see [microservice-guidelines.md](references/microservice-guidelines.md).
-
-# Scripts
-
-| Script | Purpose |
-|---|---|
-| `scripts/check-abstraction-smell.py` | Scan project for over-abstraction smells. **Best-effort only:** uses regex-based parsing and may miss edge cases (multiline generics, annotations spanning lines, complex nested structures). **Designed for new/greenfield projects.** On legacy projects with existing abstractions, expect high noise — use `--json` output and filter results to files touched in the current change. |
-| `scripts/pre-commit-check.sh` | Git pre-commit hook that runs the smell checker against staged Java/Python files. On legacy projects, consider skipping the hook or filtering its output to changed lines only. |
-
-**Smells detected per language:**
-
-| Smell | Java | Python |
-|---|---|---|
-| Single-implementation interfaces/ABCs | ✅ | ✅ |
-| Empty or single-class common/util packages | ✅ | ✅ |
-| Deep inheritance chains (depth > 2) | ✅ | ✅ |
-| Pass-through wrapper methods | ✅ | ✅ |
-| Python pass-through functions | — | ✅ |
-
-Run before committing:
+Run when useful:
 
 ```bash
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang auto   # auto-detect language
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java --json  # machine-readable
+python3 ${CLAUDE_SKILL_DIR}/scripts/check-abstraction-smell.py . --lang auto
 ```
 
-If `python3` is not available, `python` (without the 3) usually works as well.
+## Final check
 
-Install as git hook:
+Before finishing:
 
-```bash
-cp skills/readability-first-coding/scripts/pre-commit-check.sh .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-```
-
-# Assets
-
-| Asset | Purpose |
-|---|---|
-| `assets/ide-settings.json` | IDE settings template that disables auto-refactoring features (organize imports, auto-cleanup) |
-
-# Final Checks
-
-Before completing any task:
-
-- [ ] Did I create a shared method just to reduce duplication? → If yes, inline it back. **(Test code exempt if 3+ test methods use it — shared fixtures, base test classes, and test helpers are acceptable.)**
-- [ ] Did I create a `common`, `util`, `utils`, `shared`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, or `base` module the user did not ask for? → If yes, delete it. (Example: creating `common/` to hold a helper used by two files — inline it instead.) (`core/` is allowed only as FastAPI+LangGraph infrastructure — not as a generic extraction target.)
-- [ ] Did I add unnecessary parent classes or interfaces? → If yes, delete them. **(Test code exempt — base test classes are acceptable.)**
-- [ ] Does understanding simple logic require jumping across multiple files? → If yes, inline.
-- [ ] Did I modify unrelated code? → If yes, revert.
-- [ ] Did I use a more complex approach than the task requires? → If yes, simplify.
-- [ ] Can the main business flow be read top-to-bottom? → If not, rewrite.
-
-**If an abstraction reduces readability, delete the abstraction and restore direct code.**
-
-# Test Code
-
-Test code follows the same readability-first principles but with a lower bar for extraction. Within the Core Principle hierarchy, **readability still takes precedence over boilerplate reduction** — "reduce boilerplate" is not a priority; it is merely a side benefit of acceptable test abstractions:
-
-- Shared fixtures, base test classes, and test helpers are acceptable when they reduce boilerplate without obscuring the test's intent.
-- A reader should still understand what a test does by reading the test method alone — avoid deep inheritance chains in test classes.
-- `setUp()` / `@BeforeEach` is fine for common arrangement; keep it limited to what every test in the class genuinely needs.
-- If a shared test utility makes individual tests harder to follow, inline it.
-
-# Skill Deactivation
-
-Deactivate this skill when:
-
-- The user explicitly asks to refactor for reuse or DRY extraction.
-- The project has already committed to a layered/abstraction-heavy architecture and the task is within that existing pattern.
-- The user explicitly requests a different coding style or priority.
+- Does the change follow the surrounding project structure?
+- Is each new file/package/layer necessary for a concrete reason?
+- Can the main flow be understood without unnecessary cross-file jumps?
+- Did the change introduce a generic dumping-ground module?
+- Did it modify unrelated code?
+- Did it preserve correctness, tests, and required framework behavior?
