@@ -1,7 +1,7 @@
 {
   "name": "readability-first-coding",
-  "version": "1.0.0",
-  "description": "Claude Code skill: prioritize readable and direct code over unsolicited abstractions for Java & Python backends.",
+  "version": "1.1.0",
+  "description": "Project-aware coding skill for readable Java, Python, FastAPI, LangGraph, and microservice backend code without speculative abstractions.",
   "author": {
     "name": "elaysia-feng"
   },
@@ -13,12 +13,14 @@
   "homepage": "https://github.com/elaysia-feng/code-dev-skill",
   "keywords": [
     "claude-code",
-    "claude-code-plugin",
+    "agent-skill",
     "skill",
     "readability",
     "code-style",
     "java",
-    "python"
+    "python",
+    "fastapi",
+    "langgraph"
   ],
   "bin": {
     "readability-first-install": "./bin/install.js",
