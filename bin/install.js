@@ -30,20 +30,10 @@ function resolveTarget() {
     return path.join(os.homedir(), '.claude', 'skills', SKILL_NAME);
   }
 
-  const explicitPath = args.find(arg => !arg.startsWith('-'));
-  if (explicitPath) {
-    const resolved = path.resolve(explicitPath);
-
-    // Treat a repository/config root as a Claude Code project root.
-    if (
-      fs.existsSync(path.join(resolved, '.git')) ||
-      fs.existsSync(path.join(resolved, '.claude'))
-    ) {
-      return path.join(resolved, '.claude', 'skills', SKILL_NAME);
-    }
-
-    // Otherwise the caller explicitly supplied the destination directory.
-    return resolved;
+  const explicitProjectPath = args.find(arg => !arg.startsWith('-'));
+  if (explicitProjectPath) {
+    const projectRoot = path.resolve(explicitProjectPath);
+    return path.join(projectRoot, '.claude', 'skills', SKILL_NAME);
   }
 
   return path.join(process.cwd(), '.claude', 'skills', SKILL_NAME);
@@ -188,7 +178,6 @@ function copyDir(src, dest) {
 }
 
 function getClaudeRootFromSkillTarget(target) {
-  // .../.claude/skills/readability-first-coding -> .../.claude
   const skillsDir = path.dirname(target);
   if (path.basename(skillsDir) !== 'skills') return null;
 
