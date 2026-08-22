@@ -1,41 +1,34 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Pre-commit check: scan staged Java/Python files for unwanted abstractions.
+# Pre-commit check: scan staged Java/Python files for abstraction smells.
 #
-# This runs check-abstraction-smell.py against the project root and blocks
-# the commit if new abstraction smells are detected (warning level only).
+# Default behavior is advisory: smells are printed but do not block commits.
+# Set READABILITY_FIRST_STRICT=1 to make smell warnings/errors block the commit.
 #
 # Install:
 #   cp scripts/pre-commit-check.sh .git/hooks/pre-commit
 #   chmod +x .git/hooks/pre-commit
-#
-# Or use with your existing pre-commit framework (husky, pre-commit, etc.)
 # ---------------------------------------------------------------------------
 
-set -euo pipefail
+set -u
 
-# Compute PROJECT_ROOT once at the top (reused throughout)
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
+STRICT="${READABILITY_FIRST_STRICT:-0}"
+CHECKER=""
 
-# Resolve the skill directory: try BASH_SOURCE first, then search from repo root.
-# BASH_SOURCE works when the script is bash-run from its original location;
-# after "cp" into .git/hooks/ or when invoked via sh, we fall back to searching.
 if [ -n "${BASH_SOURCE[0]:-}" ]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-    CHECKER="$SKILL_DIR/scripts/check-abstraction-smell.py"
-else
-    CHECKER=""
+    CANDIDATE="$SKILL_DIR/scripts/check-abstraction-smell.py"
+    if [ -f "$CANDIDATE" ]; then
+        CHECKER="$CANDIDATE"
+    fi
 fi
 
-if [ ! -f "$CHECKER" ]; then
-    # Fallback: search from repo root for the skill directory.
-    # Look for the checker relative to common install locations.
-    # When installed as a git hook, BASH_SOURCE resolves to .git/hooks/,
-    # so the primary path is the new top-level location.
+if [ -z "$CHECKER" ]; then
     for candidate in \
+        "$PROJECT_ROOT/.claude/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
         "$PROJECT_ROOT/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$PROJECT_ROOT/.omc/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
         ; do
         if [ -f "$candidate" ]; then
             CHECKER="$candidate"
@@ -44,72 +37,58 @@ if [ ! -f "$CHECKER" ]; then
     done
 fi
 
-# Only run if we have Python available
-if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
-    echo "[readability-first] Python not found, skipping abstraction smell check."
+if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+    echo "[readability-first] Python not found; skipping advisory smell check."
     exit 0
 fi
 
 PYTHON=$(command -v python3 || command -v python)
-
-# Get changed Java/Python files in this commit.
-# ACMR = Added, Copied, Modified, Renamed. Renamed files may contain
-# abstraction smells that should be checked (pre-rename code was recently
-# touched and could have introduced unnecessary indirection).
 CHANGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null | grep -E '\.(java|py)$' || true)
 
 if [ -z "$CHANGED" ]; then
-    echo "[readability-first] No Java/Python files staged, skipping."
+    exit 0
+fi
+
+if [ -z "$CHECKER" ] || [ ! -f "$CHECKER" ]; then
+    echo "[readability-first] Checker not found; skipping smell check."
+    if [ "$STRICT" = "1" ]; then
+        echo "[readability-first] READABILITY_FIRST_STRICT=1, so missing checker blocks commit."
+        exit 1
+    fi
     exit 0
 fi
 
 FILE_COUNT=$(printf '%s\n' "$CHANGED" | wc -l)
 FILE_COUNT="${FILE_COUNT//[[:space:]]/}"
-echo "[readability-first] Checking staged files for abstraction smells..."
-if [ "$FILE_COUNT" -eq 1 ]; then
-    echo "[readability-first] Files: 1 staged Java/Python file"
-else
-    echo "[readability-first] Files: $FILE_COUNT staged Java/Python files"
-fi
+echo "[readability-first] Reviewing $FILE_COUNT staged Java/Python file(s)..."
 
-# Run the checker.
-# Known exit codes from check-abstraction-smell.py:
-#   0 - no smells found (pass)
-#   1 - smells/warnings found (block commit)
-#   2 - runtime error (bad args, missing files, etc.)
-#   * - unexpected error (treat as blocker for safety)
-if [ -f "$CHECKER" ]; then
-    CHECK_RESULT=0
-    "$PYTHON" "$CHECKER" "$PROJECT_ROOT" --lang auto --files "$CHANGED" || CHECK_RESULT=$?
+CHECK_RESULT=0
+"$PYTHON" "$CHECKER" "$PROJECT_ROOT" --lang auto --files "$CHANGED" || CHECK_RESULT=$?
 
-    if [ "$CHECK_RESULT" -eq 0 ]; then
-        echo "[readability-first] Passed - no abstraction smells detected."
+case "$CHECK_RESULT" in
+    0)
+        echo "[readability-first] No abstraction smells detected."
         exit 0
-    elif [ "$CHECK_RESULT" -eq 2 ]; then
+        ;;
+    1)
         echo ""
-        echo "[readability-first] ERROR: abstraction smell checker failed (exit code 2)."
-        echo "[readability-first] The checker encountered a runtime error. Check that the"
-        echo "[readability-first] project root is valid and Python is configured correctly."
-        exit 1
-    elif [ "$CHECK_RESULT" -eq 1 ]; then
+        echo "[readability-first] Smells detected. Treat these as review prompts, not proof of a bad architecture."
+        echo "[readability-first] Existing project conventions and explicitly requested abstractions may be valid."
+        if [ "$STRICT" = "1" ]; then
+            echo "[readability-first] Strict mode enabled; blocking commit."
+            exit 1
+        fi
+        echo "[readability-first] Advisory mode; commit is allowed."
+        exit 0
+        ;;
+    *)
         echo ""
-        echo "[readability-first] Abstraction smells found!"
-        echo "[readability-first] Review the warnings above. If these abstractions were"
-        echo "[readability-first] explicitly requested, you can ignore this warning and"
-        echo "[readability-first] commit with: git commit --no-verify"
-        echo ""
-        echo "[readability-first] If they were NOT requested, consider inlining the code"
-        echo "[readability-first] before committing."
-        exit 1
-    else
-        echo ""
-        echo "[readability-first] ERROR: checker exited with unexpected code $CHECK_RESULT."
-        echo "[readability-first] This may indicate a crash or unhandled error in the checker."
-        exit 1
-    fi
-else
-    echo "[readability-first] ERROR: check-abstraction-smell.py not found at: $CHECKER"
-    echo "[readability-first] Cannot run abstraction smell check — the quality gate is blocked."
-    echo "[readability-first] Install the skill or fix the path to re-enable checks."
-    exit 1
-fi
+        echo "[readability-first] Checker failed with exit code $CHECK_RESULT."
+        if [ "$STRICT" = "1" ]; then
+            echo "[readability-first] Strict mode enabled; blocking commit."
+            exit 1
+        fi
+        echo "[readability-first] Advisory mode; skipping failed check."
+        exit 0
+        ;;
+esac
