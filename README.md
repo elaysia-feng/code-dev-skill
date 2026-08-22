@@ -1,175 +1,248 @@
 # readability-first-coding
 
-Claude Code skill — prioritize readable, direct code over unsolicited abstractions for **Java**, **Python (FastAPI + LangGraph)**, and **Java microservice** backends.
+A project-aware coding skill for **Java/Spring**, **Java microservices**, **Python/FastAPI**, and **LangGraph** application code.
+
+The goal is not "never abstract". The rule is:
+
+> Prefer the simplest structure that fits the real project, and require a concrete reason before adding indirection.
+
+Existing project conventions take precedence over greenfield defaults.
 
 ## Install
 
 ```bash
 npm install readability-first-coding
-npx readability-first-install             # project-local → ./.omc/skills/
-npx readability-first-install --global    # global → ~/.claude/skills/
 ```
 
-Claude Code auto-discovers skills under `.claude/skills/`. No marketplace required.
-
-### Slash command (Claude Code)
-
-`--global` also installs a `/readability-first` custom command to `~/.claude/commands/`, so you can force the skill on directly from the REPL:
+Project-local Claude Code skill:
 
 ```bash
-/readability-first 给这个 Java 服务加一个订单取消接口
-/readability-first Python (FastAPI + LangGraph) 实现一个查询接口
+npx readability-first-install
 ```
 
-For a project-scoped command (non-global install), copy it manually:
+Installs to:
+
+```text
+<project>/.claude/skills/readability-first-coding/
+```
+
+Global installation:
 
 ```bash
-cp commands/readability-first.md .claude/commands/
+npx readability-first-install --global
 ```
 
-> **Note:** Skills normally auto-trigger on the keywords below; the slash command just forces the mode on explicitly. Codex CLI has no custom slash commands — use the keyword triggers there.
+Installs to:
+
+```text
+~/.claude/skills/readability-first-coding/
+```
+
+The installer also creates the shorter `/readability-first` command alias under `.claude/commands/`.
+
+Claude Code can invoke the skill directly as:
+
+```text
+/readability-first-coding
+```
+
+or through the compatibility alias:
+
+```text
+/readability-first
+```
 
 ## Update
 
 ```bash
-# Check for updates
 npx readability-first-check
-npx readability-first-check --json        # machine-readable output
-npx readability-first-install --check     # same, via install script
-
-# Pull latest and reinstall skill files
+npx readability-first-check --json
+npx readability-first-install --check
 npx readability-first-install --update
-npx readability-first-install -U          # shorthand
+npx readability-first-install -U
 ```
 
-`--check` compares your local version against the latest on npm/git and prints whether an update is available. `--update` runs `npm install readability-first-coding@latest`, then copies the new skill files over the existing ones.
-
-### Check exit codes
+Exit codes:
 
 | Code | Meaning |
-|------|---------|
+|---|---|
 | 0 | Up to date |
 | 1 | Update available |
-| 2 | Error (network, missing tooling) |
+| 2 | Network/tooling error |
 | 3 | Package not installed locally |
 
-## Philosophy
+## What the skill optimizes for
 
-```
-Easy to understand
+```text
+Existing project consistency
+> Easy to understand
 > Directness
 > Easy to modify
+> Fewer unnecessary dependencies
 > Less duplication
 > Reusability
-> Abstraction
-> Architectural beauty
+> Architectural elegance
 ```
 
-Readable code that tells its story top-to-bottom in a single file beats clever abstractions spread across five files. Correctness is mandatory and never compromised — readability never justifies bugs.
+The skill does **not** blindly reject interfaces, repositories, shared modules, enums, factories, or thin boundaries. It rejects them when they add indirection without owning meaningful behavior.
 
-## The Core Rule
+Concrete reasons for abstraction include:
 
-> **Unless the user explicitly requests it, never extract shared methods, utility classes, parent classes, or shared modules — no matter how many times the code repeats.**
+- an existing project convention
+- multiple real implementations
+- a stable shared invariant/technical concern
+- a framework/integration boundary
+- an explicit user request
 
-If the user didn't ask for an abstraction, don't create one. Duplicated business logic is allowed. Keep code close to where it's used.
+## Java defaults
 
-## What It Does
+For a new/simple Spring package with one implementation, a concrete service is enough:
 
-- Implements only what you asked for — no extra abstraction layers
-- Keeps duplicated business logic duplicated unless you explicitly request extraction
-- Forbids unsolicited `common`, `util`, `utils`, `shared`, `framework`, `helpers`, `extensions`, `support`, `infrastructure`, `base` modules. `core/` is allowed **only** as FastAPI + LangGraph infrastructure (`config.py`, `llm.py`, `middleware.py`, `langgraph/`)
-- Forbids `BaseGraph` / `BaseState` / `BaseAgent` for LangGraph
-- Writes code that reads top-to-bottom, with business logic inline
-
-## Language-Specific Rules
-
-| Stack | Reference |
-|---|---|
-| Java backend | `references/java-guidelines.md` |
-| Python backend (FastAPI + LangGraph) | `references/python-guidelines.md` |
-| Java microservices | `references/microservice-guidelines.md` |
-| Directory layout | `references/project-structure.md` |
-| Good/Bad examples | `references/examples.md` |
-
-### Python (FastAPI + LangGraph) Layout
-
+```java
+@Service
+public class OrderService {
+    public void cancelOrder(Long orderId) {
+        // business logic
+    }
+}
 ```
+
+If the surrounding project consistently uses `Service` + `ServiceImpl` for services, the skill follows that convention instead of fighting it.
+
+Domain enums are valid when they model real states:
+
+```java
+public enum OrderStatus {
+    PENDING,
+    PAID,
+    CANCELLED
+}
+```
+
+The thing to avoid is a generic global `CommonConstants`/`CommonEnums` dumping ground.
+
+## Python / FastAPI defaults
+
+Recommended package shape for a non-trivial application:
+
+```text
 src/
-├── main.py                # FastAPI entry
-├── api/v1/                # APIRoute handlers
-├── core/
-│   ├── config.py          # pydantic-settings
-│   ├── llm.py             # LLM clients
-│   ├── middleware.py
-│   └── langgraph/         # state.py, nodes.py, tools.py, graph.py
-├── graphs/                # one compiled StateGraph per file
-├── schemas/               # Pydantic request/response
-├── services/              # business logic (talks to models/ directly)
-├── models/                # SQLModel / SQLAlchemy ORM
-└── memory/                # mem0 / pgvector (optional)
+└── app/
+    ├── __init__.py
+    ├── main.py
+    ├── api/
+    ├── core/
+    ├── graphs/
+    ├── schemas/
+    ├── services/
+    └── models/
 ```
 
-Naming follows LangGraph official terms — `graphs/` aligns with the `graphs` key in `langgraph.json`.
+Directories are optional; create only what the application actually needs.
 
-## Triggers
+Do not add `utils/`, `common/`, `repositories/`, or other generic layers just because a template has them. If the existing project already uses one, preserve it consistently.
 
-The skill activates when your prompt contains keywords like:
+## LangGraph structure
 
-| Trigger | Meaning |
+Small graph:
+
+```text
+graphs/
+└── research_assistant.py
+```
+
+Keep state, a few small nodes, routing, and composition together when that is easiest to read.
+
+Complex graph:
+
+```text
+graphs/
+└── research_assistant/
+    ├── __init__.py
+    ├── graph.py
+    ├── state.py
+    ├── nodes/
+    │   ├── __init__.py
+    │   ├── plan.py
+    │   ├── retrieve.py
+    │   ├── grade_documents.py
+    │   └── generate_answer.py
+    ├── tools.py
+    └── prompts.py              # optional
+```
+
+Rules:
+
+- one meaningful node per file when a graph becomes complex
+- graph-specific state/nodes/tools stay with that graph
+- shared `core/langgraph/` code exists only when multiple graphs genuinely reuse it
+- `__init__.py` stays empty or contains lightweight exports only
+- do not compile graphs, connect databases, load large models, or perform network calls from `__init__.py`
+
+## Skill structure
+
+```text
+code-dev-skill/
+├── README.md
+├── package.json
+├── bin/
+│   ├── install.js
+│   └── check-update.js
+├── commands/
+│   └── readability-first.md
+└── skills/
+    └── readability-first-coding/
+        ├── SKILL.md
+        ├── assets/
+        │   └── ide-settings.json
+        ├── evals/
+        │   ├── evals.json
+        │   └── trigger-evals.json
+        ├── references/
+        │   ├── examples.md
+        │   ├── java-guidelines.md
+        │   ├── microservice-guidelines.md
+        │   ├── project-structure.md
+        │   └── python-guidelines.md
+        └── scripts/
+            ├── check-abstraction-smell.py
+            └── pre-commit-check.sh
+```
+
+### `SKILL.md`
+
+Small source-of-truth entry point: priorities, abstraction gate, workflow, and reference routing.
+
+### `references/`
+
+Detailed rules loaded only when relevant:
+
+| File | Purpose |
 |---|---|
-| `/readability-first` | Force-activate via Claude Code slash command |
-| `可读性优先` / `readability first` | Activate readability-first mode |
-| `易读懂优先` | Prioritize easy-to-read code |
-| `不要抽取` / `不要抽象` / `不要DRY` | Don't extract or abstract |
-| `不要公共模块` / `不要过度设计` | Don't create shared modules |
-| `保持重复` | Keep duplication |
-| `抽取公共` / `common模块` / `公共模块` | User explicitly wants extraction |
+| `java-guidelines.md` | Java/Spring conventions |
+| `python-guidelines.md` | FastAPI + LangGraph conventions |
+| `microservice-guidelines.md` | Cross-service boundaries and shared-code rules |
+| `project-structure.md` | Directory/package layouts |
+| `examples.md` | Representative good/bad shapes |
 
-## Scripts
+### `evals/`
 
-| Script | Purpose |
-|---|---|
-| `scripts/check-abstraction-smell.py` | Scan for over-abstraction: single-impl interfaces, pass-through methods, deep inheritance, single-impl ABCs |
-| `scripts/pre-commit-check.sh` | Git pre-commit hook wrapping the smell checker |
+Behavior/activation regression cases for checking that the skill remains useful after edits.
+
+### `scripts/`
+
+Best-effort static checks for abstraction smells. Findings are review prompts, not architectural truth.
+
+## Smell checker
 
 ```bash
 python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
 python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java --json
+python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang auto
 ```
 
-Install as git hook:
-
-```bash
-cp skills/readability-first-coding/scripts/pre-commit-check.sh .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-```
-
-## Structure
-
-```
-skills/readability-first-coding/
-├── SKILL.md
-├── assets/ide-settings.json
-├── evals/
-│   ├── evals.json
-│   └── trigger-evals.json
-├── references/
-│   ├── examples.md
-│   ├── java-guidelines.md
-│   ├── microservice-guidelines.md
-│   ├── project-structure.md
-│   └── python-guidelines.md
-└── scripts/
-    ├── check-abstraction-smell.py
-    └── pre-commit-check.sh
-```
+The checker is intentionally heuristic. Existing project conventions and explicitly requested abstractions can legitimately produce warnings.
 
 ## License
 
-MIT © [elaysia-feng](https://github.com/elaysia-feng)
-
-## Links
-
-- [GitHub Repository](https://github.com/elaysia-feng/code-dev-skill)
-- [npm Package](https://www.npmjs.com/package/readability-first-coding)
+MIT © elaysia-feng
