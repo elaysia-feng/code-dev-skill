@@ -60,15 +60,21 @@ Do not return database entities directly from controllers or public API endpoint
 
 ## Graphs (LangGraph)
 
-One compiled `StateGraph` per file under `graphs/`. Each graph file imports its state, nodes, and tools from `core/langgraph/` and exports a compiled `graph`:
+Each agent owns one compiled `StateGraph`. Keep small graphs in a single file; when a graph contains several non-trivial nodes, turn that graph into a package and place different nodes in separate files.
+
+### Small graph
+
+For a small graph, graph-specific nodes may stay next to the graph composition so the whole flow remains readable in one file:
 
 ```python
 # graphs/research_assistant.py
 from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
+
 from app.core.langgraph.state import AgentState
 from app.core.langgraph.nodes import call_model, should_continue
 from app.core.langgraph.tools import search_tool, fetch_tool
-from langgraph.prebuilt import ToolNode
+
 
 def build_graph():
     g = StateGraph(AgentState)
@@ -79,13 +85,87 @@ def build_graph():
     g.add_edge("tools", "agent")
     return g.compile()
 
+
+graph = build_graph()
+```
+
+### Complex graph: one node per file
+
+When a graph has several meaningful nodes, prefer this layout instead of growing one large `nodes.py` or one oversized graph file:
+
+```text
+graphs/
+└── research_assistant/
+    ├── __init__.py
+    ├── graph.py
+    └── nodes/
+        ├── __init__.py
+        ├── plan.py
+        ├── retrieve.py
+        ├── grade_documents.py
+        └── generate_answer.py
+```
+
+Each node file should contain one primary LangGraph node (small private helpers may stay in the same file):
+
+```python
+# graphs/research_assistant/nodes/retrieve.py
+from app.core.langgraph.state import AgentState
+
+
+def retrieve(state: AgentState) -> dict:
+    documents = retriever.invoke(state["query"])
+    return {"documents": documents}
+```
+
+Use `nodes/__init__.py` only as a lightweight public export surface. Do not put business logic in it:
+
+```python
+# graphs/research_assistant/nodes/__init__.py
+from .generate_answer import generate_answer
+from .grade_documents import grade_documents
+from .plan import plan
+from .retrieve import retrieve
+
+__all__ = [
+    "plan",
+    "retrieve",
+    "grade_documents",
+    "generate_answer",
+]
+```
+
+The graph composition then reads as a list of named steps rather than implementation details:
+
+```python
+# graphs/research_assistant/graph.py
+from langgraph.graph import END, StateGraph
+
+from app.core.langgraph.state import AgentState
+from .nodes import generate_answer, grade_documents, plan, retrieve
+
+
+def build_graph():
+    g = StateGraph(AgentState)
+    g.add_node("plan", plan)
+    g.add_node("retrieve", retrieve)
+    g.add_node("grade_documents", grade_documents)
+    g.add_node("generate_answer", generate_answer)
+    # edges omitted here
+    return g.compile()
+
+
 graph = build_graph()
 ```
 
 Rules:
 - Do **not** create a `BaseGraph` ABC or abstract graph builder.
 - Do **not** extract shared cross-graph state into a generic `BaseState` unless the user asks.
-- Cross-graph nodes/tools live in `core/langgraph/`. Graph-specific nodes/tools stay in the graph file.
+- Graph-specific nodes stay with that graph. For a small graph they may stay in the graph file; for a complex graph they go under that graph's `nodes/` package.
+- Different non-trivial nodes in a complex graph should be split into separate files instead of accumulating in a single large `nodes.py`.
+- `nodes/__init__.py` should contain imports / `__all__` only when a stable package-level import is useful; otherwise it may remain empty.
+- Only nodes/tools/state genuinely reused by multiple graphs belong in `core/langgraph/`.
+- Do not move graph-specific nodes into `core/langgraph/` merely to reduce duplication.
 
 ## Repeated Code
 
@@ -114,6 +194,8 @@ When implementing a feature, do **not**:
 - Modify unrelated module structure
 - Create a `BaseGraph` / `BaseState` / `BaseAgent` for LangGraph
 - Move graph-specific nodes or tools into `core/langgraph/` on your own
+
+The LangGraph node-file rule above is not an instruction to split every graph. Split by node only when the graph is large enough that keeping several meaningful node implementations together reduces readability.
 
 User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
 
