@@ -1,172 +1,154 @@
 # Java Guidelines
 
-## Service
+These are defaults for Java/Spring backend work. Existing project conventions take precedence when they are consistent.
 
-When there is only one implementation, prefer a concrete class:
+## Service shape
+
+For a greenfield package with one implementation, prefer a concrete service:
 
 ```java
 @Service
 public class OrderService {
     public void cancelOrder(Long orderId) {
-        // logic here
+        // business logic
     }
 }
 ```
 
-Do **not** automatically create:
+Do not create `OrderService` + `OrderServiceImpl` only because "Spring projects usually do this".
 
-```
-OrderService (interface)
-OrderServiceImpl
-```
+Use an interface when there is a concrete reason, for example:
 
-Create an interface only when:
+- Multiple implementations exist or are expected by an actual requirement.
+- The existing package consistently exposes services through interfaces.
+- The interface is a real module/API boundary.
+- A framework integration or test seam genuinely depends on the contract.
+- The user explicitly requests it.
 
-- The user requests it.
-- Multiple implementations actually exist.
-- The existing project convention requires it.
+### Existing interface + `impl/` convention
 
-### Interface + impl/ Layout Convention
+If neighboring services of the same role consistently use:
 
-If the project already uses an `interface` + `impl/` folder layout (e.g. `SutBuilder` next to `impl/SutBuilderImpl`), follow it for **every** new class in that package — do not break the layout by introducing a single concrete-only class while siblings have interfaces. Apply the same convention to helpers, builders, orchestrators, and any other collaborator that other modules consume.
-
-```
-com.mware.runner.biz.build/
-├── SutBuilder.java          // interface — public API
+```text
+order/service/
+├── OrderService.java
 └── impl/
-    └── SutBuilderImpl.java  // implementation
+    └── OrderServiceImpl.java
 ```
 
-Rules:
+follow that convention for a new **service of the same role**. Do not generalize the rule to every helper, builder, validator, or internal class in the package.
 
-- The **interface** lives in the parent package and is the public API callers depend on.
-- The **implementation** lives in `impl/` and is wired via DI (Spring `@Service`, etc.).
-- Callers depend on the interface type, **never** on `*Impl` directly.
-- Naming convention: `<Name>` for the interface, `<Name>Impl` for the implementation.
-- `*Impl` classes must be package-private or only referenced from the DI configuration — they are not part of the public API.
+Callers should normally depend on the public service contract when the project uses one. Do not add direct dependencies on `*Impl` from unrelated packages.
 
-This convention, when adopted, is **mandatory** for the whole package — not opt-in per class. If the project mixes both styles (some packages with interface+impl/, others without), prefer the existing project convention in each package and do not unify styles on your own.
+## DTOs
 
-## DTO
+Separate request and response models when the API already uses DTOs:
 
-Separate requests and responses:
-
-```
-dto/request/CreateOrderRequest.java
-dto/request/UpdateOrderRequest.java
-dto/response/OrderResponse.java
+```text
+dto/
+├── request/
+│   ├── CreateOrderRequest.java
+│   └── UpdateOrderRequest.java
+└── response/
+    └── OrderResponse.java
 ```
 
-Do not return database entities directly from controllers.
+Do not return persistence entities directly from public controllers unless that is an intentional existing convention.
 
-## Repeated Code
+Use Bean Validation (`@NotNull`, `@Size`, custom validators) when the project already uses it. Do not replace framework validation with handwritten `validate()` methods without a reason.
 
-Duplicated business logic is allowed. Do not extract a shared validator unless the user explicitly asks.
+## Domain types, constants, and enums
 
-**Acceptable — each class owns its validation:**
+Domain enums are appropriate when they model real finite states or categories:
 
 ```java
-public class CreateOrderRequest {
-    public void validate() {
-        if (productId == null) {
-            throw new IllegalArgumentException("productId is required");
-        }
-        if (quantity == null || quantity <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than 0");
-        }
-    }
+public enum OrderStatus {
+    PENDING,
+    PAID,
+    CANCELLED
 }
 ```
+
+What to avoid is creating generic `CommonConstants`, `CommonEnums`, `ConstantUtil`, or similar containers only to move literals out of one or two call sites.
+
+Prefer ownership-based placement:
+
+```text
+order/
+├── entity/
+├── dto/
+├── service/
+└── enums/
+    └── OrderStatus.java
+```
+
+rather than a global dumping ground.
+
+## Repeated logic
+
+Do not extract code merely because two blocks look similar. Extract when they represent the same stable rule/technical concern and a shared owner is clear.
+
+Acceptable local duplication:
 
 ```java
-public class UpdateOrderRequest {
-    public void validate() {
-        if (productId == null) {
-            throw new IllegalArgumentException("productId is required");
-        }
-        if (quantity == null || quantity <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than 0");
-        }
-    }
+if (quantity == null || quantity <= 0) {
+    throw new IllegalArgumentException("quantity must be greater than 0");
 }
 ```
 
-**Unacceptable — unsolicited extraction:**
+may legitimately appear in two independent request flows.
+
+A shared validator becomes reasonable when several callers must obey exactly the same invariant and inconsistent fixes would be risky.
+
+## Pass-through methods
+
+Avoid wrappers that add no useful boundary or behavior:
 
 ```java
-// Do NOT create this unless the user asks:
-OrderRequestValidator.validate(productId, quantity);
-```
-
-**Do not proactively create any of these:**
-
-- `CommonValidator`
-- `BaseOrderRequest`
-- `OrderValidationUtil`
-- `AbstractOrderRequest`
-
-## Forbidden Proactive Refactorings
-
-When implementing a feature, do **not**:
-
-- Extract shared methods
-- Extract utility classes
-- Create parent classes or interfaces
-- Create unified validators, converters, constant classes, or enums
-- Create shared DTOs or shared Services
-- Merge similar methods
-- Apply Template Method, Strategy, or Factory patterns
-- Split a readable single-module implementation across many files
-- Modify unrelated module structure
-
-User says "implement feature" → implement only that feature. User says "refactor" → then refactor.
-
-## Pass-Through Methods
-
-A method that only delegates to another method without adding logic is a pass-through wrapper. Do not create these unless explicitly requested:
-
-```java
-// DO NOT create a wrapper that only delegates
-@Service
-public class OrderService {
-    public void cancelOrder(Long orderId) {
-        return this.orderManager.cancel(orderId);
-    }
+public void cancelOrder(Long orderId) {
+    orderManager.cancel(orderId);
 }
 ```
 
-**Why incorrect:** The caller could invoke `orderManager.cancel(orderId)` directly. A wrapper that only delegates obscures the real implementation location and forces readers to chase through an extra file.
+A thin method is still legitimate when it intentionally owns a boundary such as:
 
-## Deep Inheritance Chains
+- `@Transactional`
+- authorization/security checks
+- metrics/tracing
+- retry/circuit-breaker policy
+- API/application-layer contract
+- adaptation between different models
 
-Avoid inheritance chains deeper than 2 levels (grandparent -> parent -> child). Each additional level forces readers to understand more files to know what a method actually does:
+Judge the boundary, not the line count.
 
-```java
-// DO NOT create deep chains like:
-// ExpressCancelHandler -> CancelHandler -> BaseHandler
-public abstract class BaseHandler {
-    public abstract void handle(Request request);
-}
+## Inheritance
 
-public class CancelHandler extends BaseHandler {
-    @Override
-    public void handle(Request request) { ... }
-}
+Prefer composition or concrete classes when inheritance only saves boilerplate. Deep inheritance chains are hard to follow.
 
-public class ExpressCancelHandler extends CancelHandler {
-    @Override
-    public void handle(Request request) { ... }
-}
+Do not apply a fixed numerical rule blindly: framework classes or established domain hierarchies may legitimately be deeper. Flag a hierarchy when understanding a concrete class requires chasing behavior through several project-owned parents with little semantic value.
+
+## New layers and patterns
+
+Do not introduce these solely for architectural symmetry:
+
+- repository layer when the project currently accesses persistence directly from services
+- factory/strategy/template-method classes for a single behavior
+- converter layer for trivial field copies
+- base controller/service/entity hierarchy
+- generic manager/handler/processor wrappers around an already clear service
+
+If the project already has one of these layers, preserve and use it instead of bypassing it.
+
+## When extraction is requested
+
+Place extracted code according to the existing repository structure first. If the project has no convention, prefer domain ownership over generic package names.
+
+Examples:
+
+```text
+order/validation/OrderValidator.java
+order/enums/OrderStatus.java
+security/JwtTokenService.java
 ```
 
-**Why incorrect:** Three levels force readers to understand all three classes. Unless the domain genuinely requires this hierarchy, flatten to one or two concrete classes.
-
-## When User Requests Extraction
-
-| Shared Content | Location |
-|---|---|
-| Shared DTOs, exceptions, enums, response wrappers | `common/` |
-| Stateless utilities (DateUtil, StringUtil, JsonUtil) | `util/` |
-| Explicitly requested base classes (BaseEntity, BaseController, BaseService) | `base/` |
-
-Only extract what the user specified. If the user says "extract this validation", extract only that validation — do not also create a full base framework.
+Use global `common/`, `util/`, or `base/` only when the extracted concern is genuinely cross-domain and that module/package has a clear purpose.
