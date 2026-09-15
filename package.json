@@ -30,5 +30,8 @@
     "skills/",
     "commands/",
     "bin/"
-  ]
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
 }

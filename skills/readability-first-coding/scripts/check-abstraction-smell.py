@@ -15,8 +15,8 @@ Usage:
   python check-abstraction-smell.py <project-root> [--lang java|python] [--json]
 
 Exit codes:
-  0 - No smells found
-  1 - Smells found (warnings)
+  0 - 未达到阻断阈值（默认只报告）
+  1 - 达到 --fail-on 指定的阻断阈值
   2 - Error running the check
 """
 
@@ -24,6 +24,8 @@ import argparse
 import json
 import re
 import sys
+import subprocess
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -779,14 +781,24 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
 # ---------------------------------------------------------------------------
 
 def report_text(smells: list[dict]) -> str:
+    """生成按严重程度分组的可读报告。
+
+    Args:
+        smells: 检查器发现的问题。
+
+    Returns:
+        用于终端输出的报告。
+    """
     if not smells:
         return "No abstraction smells found. Code looks direct and readable.\n"
 
+    # 1. 先按严重程度归组，使阻断级别的发现优先可见。
     lines = [f"Found {len(smells)} potential abstraction smell(s):\n"]
     by_severity = defaultdict(list)
     for s in smells:
         by_severity[s["severity"]].append(s)
 
+    # 2. 保持各组内部顺序，方便人工对照同一次扫描结果。
     for severity in ("warning", "info"):
         items = by_severity.get(severity, [])
         if items:
@@ -797,6 +809,14 @@ def report_text(smells: list[dict]) -> str:
 
 
 def report_json(smells: list[dict]) -> str:
+    """生成包含问题列表与数量的 JSON。
+
+    Args:
+        smells: 检查器发现的问题。
+
+    Returns:
+        JSON 字符串。
+    """
     return json.dumps({"smells": smells, "count": len(smells)}, indent=2)
 
 
@@ -804,95 +824,119 @@ def report_json(smells: list[dict]) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+def _related(smell: dict, selected: set[str]) -> bool:
+    """按涉及文件限制报告，分析阶段仍保留完整上下文。"""
+    paths = [smell.get(key) for key in ("file", "interface", "abc")]
+    for key in ("files", "implementations", "subclasses"):
+        paths.extend(smell.get(key, []))
+    return any(Path(p).as_posix() in selected for p in paths if p)
+
+
+def _scan(root: Path, args, selected: set[str] | None) -> list[dict]:
+    """读取选定语言的完整上下文后限制报告范围。"""
+    # 1. 跨文件关系必须读取全部实现，避免将未修改的实现误判为不存在。
+    java = _rglob_filtered(root, "*.java") if args.lang != "python" else []
+    python = _rglob_filtered(root, "*.py") if args.lang != "java" else []
+    language_files = {p.relative_to(root).as_posix() for p in java + python}
+    smells = [s for s in find_suspect_packages(root, args.min_package_files)
+              if _related(s, language_files)]
+    smells.extend(find_deep_inheritance(root, args.max_depth, java, python))
+    if java:
+        smells.extend(find_single_impl_interfaces(root, java))
+        smells.extend(find_pass_through_methods(root, java))
+    if python:
+        smells.extend(find_python_abc_smell(root, python))
+        smells.extend(find_python_pass_through(root, python))
+    # 2. 报告仅涉及本次选择的文件，保留完整分析产生的跨文件关系。
+    return smells if selected is None else [s for s in smells if _related(s, selected)]
+
+
+def _git(root: Path, *args: str) -> bytes:
+    """以参数列表调用 Git，保留 NUL 分隔路径和源文件字节。"""
+    return subprocess.run(["git", "-C", str(root), *args], check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+
+
+def _snapshot_index(root: Path, destination: Path) -> set[str]:
+    """复制 Git index 中的源文件，返回已暂存的变更路径。"""
+    # 1. 使用 NUL 分隔处理中文、空格和换行路径，不读取工作区源文件。
+    changed = _git(root, "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR")
+    selected = {p.decode("utf-8") for p in changed.split(b"\0") if p}
+    entries = _git(root, "ls-files", "--stage", "-z")
+    for entry in entries.split(b"\0"):
+        if not entry:
+            continue
+        metadata, raw_path = entry.split(b"\t", 1)
+        mode, oid, stage = metadata.split()
+        relative = Path(raw_path.decode("utf-8"))
+        if relative.suffix not in (".java", ".py"):
+            continue
+        if stage != b"0":
+            raise ValueError(f"暂存区存在未解决冲突：{relative}")
+        if mode not in (b"100644", b"100755"):
+            continue
+        # 2. 快照只写入临时目录中的普通源文件，拒绝逃逸路径和链接。
+        target = (destination / relative).resolve()
+        if not target.is_relative_to(destination.resolve()):
+            raise ValueError(f"无效的 Git 路径：{relative}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_git(root, "cat-file", "blob", oid.decode("ascii")))
+    return selected
+
+
 def main():
+    """解析检查范围并输出结果，仅在达到显式阈值时阻断。"""
+    # 1. 区分报告范围与分析上下文，默认只报告而不阻止提交。
     parser = argparse.ArgumentParser(description="Check for abstraction smells")
     parser.add_argument("root", type=Path, help="Project root directory")
-    parser.add_argument("--lang", choices=("java", "python", "auto"), default="auto",
-                        help="Language to analyze (default: auto-detect)")
+    parser.add_argument("--lang", choices=("java", "python", "auto"), default="auto")
     parser.add_argument("--max-depth", type=int, default=2,
-                        help="Maximum inheritance depth before flagging (default: 2)")
-    parser.add_argument("--json", action="store_true", help="Output as JSON")
-    parser.add_argument("--min-package-files", type=int, default=2,
-                        help="Max files in a suspect package before it is flagged (default: 2)")
-    parser.add_argument("--files", nargs="?", const="-", default=None,
-                        help="Analyze specific files instead of rglob. "
-                             "Pass newline-separated paths as an argument, "
-                             "or use '--files' (no value) / '--files -' to read from stdin.")
+                        help="Inheritance edge count at which to report (default: 2)")
+    parser.add_argument("--min-package-files", type=int, default=2)
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--fail-on", choices=("none", "warning", "info"), default="none")
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument("--files", nargs="?", const="-", default=None,
+                       help="Newline-separated relative paths; omit value to read stdin")
+    scope.add_argument("--staged", action="store_true", help="Analyze Git index contents")
     args = parser.parse_args()
-
     root = args.root.resolve()
     if not root.is_dir():
-        print(f"Error: '{root}' is not a directory", file=sys.stderr)
-        sys.exit(2)
+        parser.error(f"Not a directory: {root}")
+    if args.max_depth < 1 or args.min_package_files < 0:
+        parser.error("Depth must be positive and package size must be non-negative")
 
-    lang = args.lang
-    max_depth = args.max_depth
-    smells = []
-
-    # --- Resolve explicit file list (if --files was provided) ---
-    file_list_java: list[Path] | None = None
-    file_list_py: list[Path] | None = None
-
-    if args.files is not None:
-        # Read from argument string or stdin
-        if args.files == "-":
-            raw = sys.stdin.read()
-        else:
-            raw = args.files
-        all_paths: list[Path] = []
-        for line in raw.strip().splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            p = (root / line).resolve()
-            if p.is_file():
-                all_paths.append(p)
-        if lang in ("java", "auto"):
-            file_list_java = [p for p in all_paths if p.suffix == ".java"]
-        if lang in ("python", "auto"):
-            file_list_py = [p for p in all_paths if p.suffix == ".py"]
-
-    # Language-agnostic checks (run regardless of --lang, safe when files absent)
-    smells.extend(find_suspect_packages(root, min_files=args.min_package_files))
-    smells.extend(find_deep_inheritance(root, max_depth=max_depth,
-                                         file_list_java=file_list_java,
-                                         file_list_py=file_list_py))
-
-    # Java-specific checks
-    if lang in ("java", "auto"):
-        if file_list_java is not None:
-            has_java = len(file_list_java) > 0
-        else:
-            has_java = any(_rglob_filtered(root, "*.java"))
-        if has_java or lang == "java":
-            smells.extend(find_single_impl_interfaces(root, file_list=file_list_java))
-            smells.extend(find_pass_through_methods(root, file_list=file_list_java))
-        if lang == "java" and not has_java:
-            print("Warning: --lang java specified but no .java files found.", file=sys.stderr)
-
-    # Python-specific checks
-    if lang in ("python", "auto"):
-        if file_list_py is not None:
-            has_py = len(file_list_py) > 0
-        else:
-            has_py = any(_rglob_filtered(root, "*.py"))
-        if has_py or lang == "python":
-            smells.extend(find_python_abc_smell(root, file_list=file_list_py))
-            smells.extend(find_python_pass_through(root, file_list=file_list_py))
-        if lang == "python" and not has_py:
-            print("Warning: --lang python specified but no .py files found.", file=sys.stderr)
-
-    if args.json:
-        print(report_json(smells))
+    # 2. 暂存模式建立完整源文件快照，普通模式读取当前工作区。
+    if args.staged:
+        root = Path(_git(root, "rev-parse", "--show-toplevel").decode("utf-8").strip())
+        with tempfile.TemporaryDirectory(prefix="readability-index-") as temp:
+            snapshot = Path(temp)
+            selected = _snapshot_index(root, snapshot)
+            smells = _scan(snapshot, args, selected)
     else:
-        print(report_text(smells))
+        selected = None
+        if args.files is not None:
+            raw = sys.stdin.read() if args.files == "-" else args.files
+            selected = set()
+            for line in raw.splitlines():
+                if not line:
+                    continue
+                candidate = (root / line).resolve()
+                if not candidate.is_relative_to(root) or not candidate.is_file():
+                    parser.error(f"Invalid source path: {line}")
+                selected.add(candidate.relative_to(root).as_posix())
+        smells = _scan(root, args, selected)
 
-    sys.exit(1 if smells else 0)
+    # 3. 输出与退出策略分开，info 不会触发 warning 级阻断。
+    print(report_json(smells) if args.json else report_text(smells))
+    blocked = args.fail_on != "none" and any(
+        args.fail_on == "info" or s["severity"] == "warning" for s in smells)
+    sys.exit(1 if blocked else 0)
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"Error: unexpected failure in abstraction smell checker: {e}", file=sys.stderr)
+        print(f"Error: abstraction smell checker failed: {e}", file=sys.stderr)
         sys.exit(2)
