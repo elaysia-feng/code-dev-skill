@@ -25,18 +25,22 @@ const commandSrc = path.join(__dirname, '..', 'commands', `${COMMAND_NAME}.md`);
 
 function resolveTarget() {
   const args = process.argv.slice(2);
-
-  if (args.includes('--global') || args.includes('-g')) {
-    return path.join(os.homedir(), '.claude', 'skills', SKILL_NAME);
+  const allowed = new Set(['--global', '-g', '--check', '--update', '-U', '--target-dir', '--json']);
+  for (const arg of args) {
+    if (arg.startsWith('-') && !allowed.has(arg)) throw new Error('Unknown option: ' + arg);
   }
-
-  const explicitProjectPath = args.find(arg => !arg.startsWith('-'));
-  if (explicitProjectPath) {
-    const projectRoot = path.resolve(explicitProjectPath);
-    return path.join(projectRoot, '.claude', 'skills', SKILL_NAME);
+  const direct = args.indexOf('--target-dir');
+  const global = args.includes('--global') || args.includes('-g');
+  const paths = args.filter(arg => !arg.startsWith('-'));
+  if (paths.length > 1 || (global && paths.length)) throw new Error('Choose one install destination');
+  if (direct >= 0) {
+    if (!args[direct + 1] || args[direct + 1].startsWith('-')) {
+      throw new Error('--target-dir requires a directory');
+    }
+    return path.resolve(args[direct + 1]);
   }
-
-  return path.join(process.cwd(), '.claude', 'skills', SKILL_NAME);
+  if (global) return path.join(os.homedir(), '.claude', 'skills', SKILL_NAME);
+  return path.join(path.resolve(paths[0] || process.cwd()), '.claude', 'skills', SKILL_NAME);
 }
 
 function compareVersions(a, b) {
@@ -128,34 +132,31 @@ function doCheck() {
 }
 
 function doUpdate() {
-  const local = getLocalVersion();
-  console.log(`Current version: ${local || 'unknown'}`);
-  console.log('Pulling latest from npm...');
-
+  const target = resolveTarget();
+  // 在独立前缀安装新包，避免改动调用者的 package.json 或复用旧 npx 缓存。
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'readability-update-'));
   try {
-    execSync(`npm install ${SKILL_NAME}@latest`, {
-      encoding: 'utf8',
+    execSync('npm install readability-first-coding@latest --ignore-scripts --no-audit --no-fund --package-lock=false', {
+      cwd: temp,
       timeout: 60000,
       stdio: 'inherit',
     });
-  } catch {
-    console.error('ERROR: Failed to update package. Try: npm install readability-first-coding@latest');
-    process.exit(2);
+    const freshRoot = path.join(temp, 'node_modules', SKILL_NAME);
+    const freshSkill = path.join(freshRoot, 'skills', SKILL_NAME);
+    const freshPackage = JSON.parse(fs.readFileSync(path.join(freshRoot, 'package.json'), 'utf8'));
+    if (freshPackage.name !== SKILL_NAME || !freshPackage.version || !fs.existsSync(path.join(freshSkill, 'SKILL.md'))) {
+      throw new Error('Updated package is incomplete');
+    }
+    copyDir(freshSkill, target);
+    copyCommand(target, path.join(freshRoot, 'commands', COMMAND_NAME + '.md'));
+    if (!fs.readFileSync(path.join(target, 'SKILL.md')).equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
+      throw new Error('Installed skill verification failed');
+    }
+    console.log('Installed v' + freshPackage.version + ' to: ' + target);
+  } finally {
+    // temp 由本进程创建，清理范围不依赖用户输入。
+    fs.rmSync(temp, { recursive: true, force: true });
   }
-
-  if (!fs.existsSync(skillSrc)) {
-    console.error(`ERROR: skill source not found at: ${skillSrc} after update.`);
-    process.exit(2);
-  }
-
-  const newVersion = getLocalVersion();
-  console.log(`\nUpdated: v${local || '?'} -> v${newVersion || '?'}`);
-
-  const target = resolveTarget();
-  copyDir(skillSrc, target);
-  copyCommandAlias(target);
-  console.log(`Installed to: ${target}`);
-  console.log('\nDone!');
 }
 
 function copyDir(src, dest) {
@@ -165,8 +166,8 @@ function copyDir(src, dest) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
-    if (entry.isDirectory() && entry.name === '__pycache__') {
-      continue;
+    if (entry.isDirectory() && (entry.name === '__pycache__' || entry.name === '.omc')) {
+      continue; // skip Python bytecode cache and OMC runtime state
     }
 
     if (entry.isDirectory()) {
@@ -177,28 +178,20 @@ function copyDir(src, dest) {
   }
 }
 
-function getClaudeRootFromSkillTarget(target) {
-  const skillsDir = path.dirname(target);
-  if (path.basename(skillsDir) !== 'skills') return null;
+// Copy the /<COMMAND_NAME> slash command so users can trigger the skill from the REPL.
+// Global installs go to ~/.claude/commands/; project installs only get a hint.
+function copyCommand(target, source = commandSrc) {
+  if (!fs.existsSync(source)) return;
 
-  const claudeDir = path.dirname(skillsDir);
-  if (path.basename(claudeDir) !== '.claude') return null;
-
-  return claudeDir;
-}
-
-// The skill itself is directly invocable as /readability-first-coding.
-// Keep /readability-first as a shorter compatibility alias.
-function copyCommandAlias(target) {
-  if (!fs.existsSync(commandSrc)) return;
-
-  const claudeRoot = getClaudeRootFromSkillTarget(target);
-  if (!claudeRoot) return;
-
-  const commandDest = path.join(claudeRoot, 'commands', `${COMMAND_NAME}.md`);
-  fs.mkdirSync(path.dirname(commandDest), { recursive: true });
-  fs.copyFileSync(commandSrc, commandDest);
-  console.log(`Installed alias: /${COMMAND_NAME} -> ${commandDest}`);
+  const globalTarget = path.join(os.homedir(), '.claude', 'skills', SKILL_NAME);
+  if (target === globalTarget) {
+    const cmdDest = path.join(os.homedir(), '.claude', 'commands', `${COMMAND_NAME}.md`);
+    fs.mkdirSync(path.dirname(cmdDest), { recursive: true });
+    fs.copyFileSync(source, cmdDest);
+    console.log(`Installed slash command: /${COMMAND_NAME} -> ${cmdDest}`);
+  } else {
+    console.log(`Hint: to enable /${COMMAND_NAME} in a project, copy ${commandSrc} to <project>/.claude/commands/`);
+  }
 }
 
 function main() {
@@ -224,7 +217,7 @@ function main() {
   console.log(`Installing "${SKILL_NAME}"...`);
 
   copyDir(skillSrc, target);
-  copyCommandAlias(target);
+  copyCommand(target);
 
   console.log(`Installed to: ${target}`);
   console.log('');
@@ -233,7 +226,11 @@ function main() {
   console.log(`Alias command:  /${COMMAND_NAME}`);
   console.log('');
   console.log('Optional checks:');
-  console.log(`  python3 ${target}/scripts/check-abstraction-smell.py . --lang auto`);
+  console.log('  Optional hook: merge scripts/pre-commit-check.sh into your existing hook; do not overwrite it.');
+  console.log(`  Run smell checker:        python3 ${target}/scripts/check-abstraction-smell.py . --lang auto`);
 }
 
-main();
+try { main(); } catch (error) {
+  console.error('ERROR: ' + error.message);
+  process.exitCode = 2;
+}
