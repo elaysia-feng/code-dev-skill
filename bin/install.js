@@ -16,9 +16,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execSync } = require('node:child_process');
+const getRemoteVersion = require(path.join(__dirname, 'remote-version.js'));
 
 const PACKAGE_NAME = 'readability-first-coding';
 const SKILL_NAME = 'code-dev';
+const GITHUB_PACKAGE_SPEC = 'github:elaysia-feng/code-dev-skill#main';
 
 const skillSrc = path.join(__dirname, '..', 'skills', SKILL_NAME);
 
@@ -42,70 +44,15 @@ function resolveTarget() {
   return path.join(path.resolve(paths[0] || process.cwd()), '.claude', 'skills', SKILL_NAME);
 }
 
-function compareVersions(a, b) {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  const len = Math.max(pa.length, pb.length);
-
-  for (let i = 0; i < len; i++) {
-    const av = pa[i] || 0;
-    const bv = pb[i] || 0;
-    if (av !== bv) return av - bv;
-  }
-
-  return 0;
-}
-
 function getLocalVersion() {
   const pkgPath = path.join(__dirname, '..', 'package.json');
   if (!fs.existsSync(pkgPath)) return null;
   return JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
 }
 
-function getRemoteVersion() {
-  try {
-    const out = execSync('npm view ' + PACKAGE_NAME + ' version', {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    if (out) return out;
-  } catch {
-    // Fall back to git tags.
-  }
-
-  try {
-    const repoUrl = 'https://github.com/elaysia-feng/code-dev-skill.git';
-    const out = execSync(`git ls-remote --tags --refs ${repoUrl}`, {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-
-    if (out) {
-      const tags = out
-        .split('\n')
-        .map(line => {
-          const match = line.match(/refs\/tags\/v?(\d+\.\d+\.\d+)$/);
-          return match ? match[1] : null;
-        })
-        .filter(Boolean);
-
-      if (tags.length) {
-        tags.sort(compareVersions);
-        return tags[tags.length - 1];
-      }
-    }
-  } catch {
-    // git may be unavailable.
-  }
-
-  return null;
-}
-
-function doCheck() {
+async function doCheck() {
   const local = getLocalVersion();
-  const remote = getRemoteVersion();
+  const remote = await getRemoteVersion();
 
   if (!remote) {
     console.error('ERROR: Could not fetch remote version. Check your network connection.');
@@ -115,7 +62,7 @@ function doCheck() {
   if (!local) {
     console.log(`Package "${PACKAGE_NAME}" is not installed locally.`);
     console.log(`Latest version: ${remote}`);
-    console.log(`\nInstall with: npm install ${PACKAGE_NAME}`);
+    console.log('\nInstall with: npm install github:elaysia-feng/code-dev-skill');
     process.exit(3);
   }
 
@@ -135,7 +82,7 @@ function doUpdate() {
   // 在独立前缀安装新包，避免改动调用者的 package.json 或复用旧 npx 缓存。
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'code-dev-update-'));
   try {
-    execSync('npm install ' + PACKAGE_NAME + '@latest --ignore-scripts --no-audit --no-fund --package-lock=false', {
+    execSync('npm install ' + GITHUB_PACKAGE_SPEC + ' --ignore-scripts --no-audit --no-fund --package-lock=false', {
       cwd: temp,
       timeout: 60000,
       stdio: 'inherit',
@@ -158,11 +105,21 @@ function doUpdate() {
 }
 
 function copyDir(src, dest) {
+  assertNoSymbolicPath(src);
+  assertNoSymbolicPath(dest);
+  if (!fs.lstatSync(src).isDirectory()) {
+    throw new Error('Skill source is not a directory: ' + src);
+  }
   fs.mkdirSync(dest, { recursive: true });
+  assertNoSymbolicPath(dest);
 
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
+
+    if (entry.isSymbolicLink()) {
+      throw new Error('Refusing symbolic link in skill source: ' + srcPath);
+    }
 
     if (entry.isDirectory() && (entry.name === '__pycache__' || entry.name === '.omc')) {
       continue; // skip Python bytecode cache and OMC runtime state
@@ -170,9 +127,48 @@ function copyDir(src, dest) {
 
     if (entry.isDirectory()) {
       copyDir(srcPath, destPath);
-    } else {
+    } else if (entry.isFile()) {
+      assertNoSymbolicPath(destPath);
+      assertRegularUnlinkedFile(srcPath, 'skill source');
+      assertRegularUnlinkedFileIfPresent(destPath, 'install target');
       fs.copyFileSync(srcPath, destPath);
+    } else {
+      throw new Error('Refusing unsupported file type in skill source: ' + srcPath);
     }
+  }
+}
+
+function assertNoSymbolicPath(targetPath) {
+  const absolute = path.resolve(targetPath);
+  const root = path.parse(absolute).root;
+  let current = root;
+
+  for (const part of absolute.slice(root.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        throw new Error('Refusing symbolic link in install path: ' + current);
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+  }
+}
+
+function assertRegularUnlinkedFile(targetPath, description) {
+  const stat = fs.lstatSync(targetPath);
+  if (!stat.isFile() || stat.nlink > 1) {
+    throw new Error('Refusing linked or non-regular ' + description + ': ' + targetPath);
+  }
+}
+
+function assertRegularUnlinkedFileIfPresent(targetPath, description) {
+  try {
+    assertRegularUnlinkedFile(targetPath, description);
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
   }
 }
 
@@ -180,7 +176,7 @@ function main() {
   const args = process.argv.slice(2);
 
   if (args.includes('--check')) {
-    doCheck();
+    doCheck().catch(reportError);
     return;
   }
 
@@ -211,7 +207,9 @@ function main() {
   console.log(`  Run smell checker:        python3 ${target}/scripts/check-abstraction-smell.py . --lang auto`);
 }
 
-try { main(); } catch (error) {
+function reportError(error) {
   console.error('ERROR: ' + error.message);
   process.exitCode = 2;
 }
+
+try { main(); } catch (error) { reportError(error); }

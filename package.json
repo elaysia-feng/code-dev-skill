@@ -1,6 +1,6 @@
 {
   "name": "readability-first-coding",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Project-aware coding skill for Java, Python, TypeScript, backend architecture, useful code comments, and TypeScript package publishing without speculative abstractions.",
   "author": {
     "name": "elaysia-feng"

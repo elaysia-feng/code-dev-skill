@@ -2,14 +2,14 @@
 
 面向 Java/Spring、Python/FastAPI/LangGraph 和 TypeScript/Node.js 项目的开发技能。除项目结构与抽象取舍外，合并了中文代码注释规范，并为可发布的 TypeScript npm 包提供入口、类型声明和打包建议。
 
-技能名、目录名和主动触发名统一为 `code-dev`：Codex 使用 `$code-dev`，Claude Code 使用 `/code-dev`。npm 分发包名暂保留 `readability-first-coding`，它只是安装包名，不是技能触发名。
+技能名、目录名和主动触发名统一为 `code-dev`：Codex 使用 `$code-dev`，Claude Code 使用 `/code-dev`。`package.json` 中的包名暂保留 `readability-first-coding` 作为兼容标识；安装从 GitHub 获取，不依赖 npm registry 上的同名包。
 
 ## 安装与调用
 
-在目标项目目录安装 npm 包并执行安装器：
+在目标项目目录从 GitHub 安装包并执行安装器：
 
 ```sh
-npm install readability-first-coding
+npm install github:elaysia-feng/code-dev-skill
 npx readability-first-install
 ```
 

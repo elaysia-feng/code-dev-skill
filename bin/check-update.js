@@ -14,9 +14,9 @@
  *   3 — package not installed locally
  */
 
-const { execSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const getRemoteVersion = require(path.join(__dirname, 'remote-version.js'));
 
 const PKG_NAME = 'readability-first-coding';
 
@@ -31,45 +31,6 @@ function getLocalVersion() {
       return JSON.parse(fs.readFileSync(p, 'utf8')).version;
     }
   }
-  return null;
-}
-
-function getRemoteVersion() {
-  // Try npm registry first (works for published packages)
-  try {
-    const out = execSync(`npm view ${PKG_NAME} version`, {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    if (out) return out;
-  } catch {
-    // not on npm registry — fall through to git
-  }
-
-  // Fallback: query git remote for latest tag
-  try {
-    const repoUrl = getRepoUrl();
-    const out = execSync(`git ls-remote --tags --refs ${repoUrl}`, {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    if (out) {
-      // Parse tags like "refs/tags/v1.2.3" or "refs/tags/1.2.3"
-      const tags = out.split('\n').map(line => {
-        const match = line.match(/refs\/tags\/v?(\d+\.\d+\.\d+)$/);
-        return match ? match[1] : null;
-      }).filter(Boolean);
-      if (tags.length) {
-        tags.sort(compareVersions);
-        return tags[tags.length - 1];
-      }
-    }
-  } catch {
-    // git not available or network error
-  }
-
   return null;
 }
 
@@ -93,29 +54,12 @@ function compareVersions(a, b) {
   return 0;
 }
 
-function getRepoUrl() {
-  // Derive from package.json repository field
-  try {
-    const pkgPath = path.join(__dirname, '..', 'package.json');
-    if (fs.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      if (pkg.repository && pkg.repository.url) {
-        // Convert "git+https://github.com/..." to "https://github.com/..."
-        return pkg.repository.url.replace(/^git\+/, '');
-      }
-    }
-  } catch {
-    // fall through to default
-  }
-  return 'https://github.com/elaysia-feng/code-dev-skill.git';
-}
-
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const json = args.includes('--json');
 
   const local = getLocalVersion();
-  const remote = getRemoteVersion();
+  const remote = await getRemoteVersion();
 
   if (!remote) {
     const msg = 'Could not fetch remote version. Check your network connection.';
@@ -133,7 +77,7 @@ function main() {
     } else {
       console.log(`Package "${PKG_NAME}" is not installed locally.`);
       console.log(`Latest version: ${remote}`);
-      console.log(`\nInstall with: npm install ${PKG_NAME}`);
+      console.log('\nInstall with: npm install github:elaysia-feng/code-dev-skill');
     }
     process.exit(3);
   }
@@ -160,4 +104,12 @@ function main() {
   process.exit(cmp >= 0 ? 0 : 1);
 }
 
-main();
+main().catch(error => {
+  const msg = 'Could not fetch remote version. Check your network connection: ' + error.message;
+  if (process.argv.includes('--json')) {
+    process.stderr.write(JSON.stringify({ status: 'error', error: msg }) + '\n');
+  } else {
+    console.error('ERROR: ' + msg);
+  }
+  process.exitCode = 2;
+});
