@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
-const checker = path.join(root, 'skills/readability-first-coding/scripts/check-abstraction-smell.py');
+const checker = path.join(root, 'skills/code-dev/scripts/check-abstraction-smell.py');
 const python = process.env.READABILITY_PYTHON || 'python';
 
 function workspace(t) {
@@ -121,10 +121,10 @@ function installer(dir, args, download) {
 test('目录参数始终表示项目根目录，直接目录选项独立', t => {
   const dir = workspace(t);
   assert.equal(installer(dir, []).status, 0);
-  assert.ok(fs.existsSync(path.join(dir, '.claude/skills/readability-first-coding/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(dir, '.claude/skills/code-dev/SKILL.md')));
   const project = path.join(dir, 'new-project');
   assert.equal(installer(dir, [project]).status, 0);
-  assert.ok(fs.existsSync(path.join(project, '.claude/skills/readability-first-coding/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(project, '.claude/skills/code-dev/SKILL.md')));
   const direct = path.join(dir, 'direct');
   assert.equal(installer(dir, ['--target-dir', direct]).status, 0);
   assert.ok(fs.existsSync(path.join(direct, 'SKILL.md')));
@@ -132,7 +132,7 @@ test('目录参数始终表示项目根目录，直接目录选项独立', t => 
   assert.equal(installer(dir, ['--global', direct]).status, 2);
 });
 
-test('更新从新包复制技能及全局命令，调用者依赖文件保持原样', t => {
+test('更新从新包复制 code-dev 技能，调用者依赖文件保持原样', t => {
   const dir = workspace(t);
   write(dir, 'package.json', '{"private":true}');
   let temporary;
@@ -142,12 +142,10 @@ test('更新从新包复制技能及全局命令，调用者依赖文件保持�
     assert.match(command, /--ignore-scripts/);
     const fresh = path.join(temporary, 'node_modules/readability-first-coding');
     write(fresh, 'package.json', '{"name":"readability-first-coding","version":"9.0.0"}');
-    write(fresh, 'skills/readability-first-coding/SKILL.md', 'new skill');
-    write(fresh, 'commands/readability-first.md', 'new command');
+    write(fresh, 'skills/code-dev/SKILL.md', 'new skill');
   });
   assert.equal(result.status, 0, result.logs.join('\n'));
-  assert.equal(fs.readFileSync(path.join(dir, 'home/.claude/skills/readability-first-coding/SKILL.md'), 'utf8'), 'new skill');
-  assert.equal(fs.readFileSync(path.join(dir, 'home/.claude/commands/readability-first.md'), 'utf8'), 'new command');
+  assert.equal(fs.readFileSync(path.join(dir, 'home/.claude/skills/code-dev/SKILL.md'), 'utf8'), 'new skill');
   assert.equal(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'), '{"private":true}');
   assert.ok(result.logs.some(s => s.includes('9.0.0')));
   assert.equal(fs.existsSync(temporary), false);
@@ -155,10 +153,10 @@ test('更新从新包复制技能及全局命令，调用者依赖文件保持�
 
 test('下载失败保留原技能并返回错误', t => {
   const dir = workspace(t);
-  write(dir, '.claude/skills/readability-first-coding/SKILL.md', 'existing');
+  write(dir, '.claude/skills/code-dev/SKILL.md', 'existing');
   const result = installer(dir, ['--update'], () => { throw new Error('offline'); });
   assert.equal(result.status, 2);
-  assert.equal(fs.readFileSync(path.join(dir, '.claude/skills/readability-first-coding/SKILL.md'), 'utf8'), 'existing');
+  assert.equal(fs.readFileSync(path.join(dir, '.claude/skills/code-dev/SKILL.md'), 'utf8'), 'existing');
 });
 
 test('Git Bash hook 实际调用检查器并传递严重程度阈值', t => {
@@ -168,7 +166,7 @@ test('Git Bash hook 实际调用检查器并传递严重程度阈值', t => {
   git(dir, 'add', '.');
   const bash = process.env.READABILITY_BASH || (process.platform === 'win32'
     ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
-  const hook = path.join(root, 'skills/readability-first-coding/scripts/pre-commit-check.sh');
+  const hook = path.join(root, 'skills/code-dev/scripts/pre-commit-check.sh');
   for (const [threshold, expected] of [['none', 0], ['warning', 0], ['info', 1]]) {
     const result = spawnSync(bash, [hook], {
       cwd: dir, encoding: 'utf8',

@@ -70,9 +70,9 @@
     "reason": "Direct statement of the skill's purpose."
   },
   {
-    "query": "Follow readability-first principles when implementing this service",
+      "query": "Use $code-dev when implementing this service",
     "should_trigger": true,
-    "reason": "Direct English statement of the skill's purpose."
+      "reason": "Explicit invocation by the new skill name."
   },
   {
     "query": "解释什么是 Java 多态",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Check a Java/Python codebase for abstraction smells that violate
-the readability-first-coding skill.
+the code-dev skill.
 
 Smells detected:
   - Single-implementation interfaces (XxxService -> XxxServiceImpl)

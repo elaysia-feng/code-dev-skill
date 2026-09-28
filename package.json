@@ -1,7 +1,7 @@
 {
   "name": "readability-first-coding",
   "version": "1.1.0",
-  "description": "Project-aware coding skill for readable Java, Python, FastAPI, LangGraph, and microservice backend code without speculative abstractions.",
+  "description": "Project-aware coding skill for Java, Python, TypeScript, backend architecture, useful code comments, and TypeScript package publishing without speculative abstractions.",
   "author": {
     "name": "elaysia-feng"
   },
@@ -13,12 +13,18 @@
   "homepage": "https://github.com/elaysia-feng/code-dev-skill",
   "keywords": [
     "claude-code",
+    "codex",
     "agent-skill",
     "skill",
+    "code-dev",
     "readability",
     "code-style",
     "java",
     "python",
+    "typescript",
+    "tsdoc",
+    "npm",
+    "comments",
     "fastapi",
     "langgraph"
   ],
@@ -28,7 +34,6 @@
   },
   "files": [
     "skills/",
-    "commands/",
     "bin/"
   ],
   "scripts": {

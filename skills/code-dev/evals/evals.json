@@ -1,6 +1,6 @@
 {
-  "skill_name": "readability-first-coding",
-  "description": "Regression cases for project-aware readable backend code: preserve existing architecture, enforce Java business interface contracts, avoid speculative indirection, and use abstractions when they own a real boundary or the user requests them.",
+  "skill_name": "code-dev",
+  "description": "Regression cases for project-aware Java, Python, and TypeScript implementation: preserve project conventions, avoid speculative indirection, document useful code contracts, and publish TypeScript packages with clear public entry points.",
   "evals": [
     {
       "id": 1,

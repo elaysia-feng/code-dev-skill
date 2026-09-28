@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Install the readability-first-coding skill into a Claude Code project or user config.
+ * Install the code-dev skill into a Claude Code project or user config.
  *
  * Usage:
  *   readability-first-install                    # project -> ./.claude/skills/
@@ -17,11 +17,10 @@ const path = require('node:path');
 const os = require('node:os');
 const { execSync } = require('node:child_process');
 
-const SKILL_NAME = 'readability-first-coding';
-const COMMAND_NAME = 'readability-first';
+const PACKAGE_NAME = 'readability-first-coding';
+const SKILL_NAME = 'code-dev';
 
 const skillSrc = path.join(__dirname, '..', 'skills', SKILL_NAME);
-const commandSrc = path.join(__dirname, '..', 'commands', `${COMMAND_NAME}.md`);
 
 function resolveTarget() {
   const args = process.argv.slice(2);
@@ -65,7 +64,7 @@ function getLocalVersion() {
 
 function getRemoteVersion() {
   try {
-    const out = execSync(`npm view ${SKILL_NAME} version`, {
+    const out = execSync('npm view ' + PACKAGE_NAME + ' version', {
       encoding: 'utf8',
       timeout: 15000,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -114,9 +113,9 @@ function doCheck() {
   }
 
   if (!local) {
-    console.log(`Package "${SKILL_NAME}" is not installed locally.`);
+    console.log(`Package "${PACKAGE_NAME}" is not installed locally.`);
     console.log(`Latest version: ${remote}`);
-    console.log(`\nInstall with: npm install ${SKILL_NAME}`);
+    console.log(`\nInstall with: npm install ${PACKAGE_NAME}`);
     process.exit(3);
   }
 
@@ -134,21 +133,20 @@ function doCheck() {
 function doUpdate() {
   const target = resolveTarget();
   // 在独立前缀安装新包，避免改动调用者的 package.json 或复用旧 npx 缓存。
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'readability-update-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'code-dev-update-'));
   try {
-    execSync('npm install readability-first-coding@latest --ignore-scripts --no-audit --no-fund --package-lock=false', {
+    execSync('npm install ' + PACKAGE_NAME + '@latest --ignore-scripts --no-audit --no-fund --package-lock=false', {
       cwd: temp,
       timeout: 60000,
       stdio: 'inherit',
     });
-    const freshRoot = path.join(temp, 'node_modules', SKILL_NAME);
+    const freshRoot = path.join(temp, 'node_modules', PACKAGE_NAME);
     const freshSkill = path.join(freshRoot, 'skills', SKILL_NAME);
     const freshPackage = JSON.parse(fs.readFileSync(path.join(freshRoot, 'package.json'), 'utf8'));
-    if (freshPackage.name !== SKILL_NAME || !freshPackage.version || !fs.existsSync(path.join(freshSkill, 'SKILL.md'))) {
+    if (freshPackage.name !== PACKAGE_NAME || !freshPackage.version || !fs.existsSync(path.join(freshSkill, 'SKILL.md'))) {
       throw new Error('Updated package is incomplete');
     }
     copyDir(freshSkill, target);
-    copyCommand(target, path.join(freshRoot, 'commands', COMMAND_NAME + '.md'));
     if (!fs.readFileSync(path.join(target, 'SKILL.md')).equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
       throw new Error('Installed skill verification failed');
     }
@@ -178,22 +176,6 @@ function copyDir(src, dest) {
   }
 }
 
-// Copy the /<COMMAND_NAME> slash command so users can trigger the skill from the REPL.
-// Global installs go to ~/.claude/commands/; project installs only get a hint.
-function copyCommand(target, source = commandSrc) {
-  if (!fs.existsSync(source)) return;
-
-  const globalTarget = path.join(os.homedir(), '.claude', 'skills', SKILL_NAME);
-  if (target === globalTarget) {
-    const cmdDest = path.join(os.homedir(), '.claude', 'commands', `${COMMAND_NAME}.md`);
-    fs.mkdirSync(path.dirname(cmdDest), { recursive: true });
-    fs.copyFileSync(source, cmdDest);
-    console.log(`Installed slash command: /${COMMAND_NAME} -> ${cmdDest}`);
-  } else {
-    console.log(`Hint: to enable /${COMMAND_NAME} in a project, copy ${commandSrc} to <project>/.claude/commands/`);
-  }
-}
-
 function main() {
   const args = process.argv.slice(2);
 
@@ -209,7 +191,7 @@ function main() {
 
   if (!fs.existsSync(skillSrc)) {
     console.error(`ERROR: skill source not found at: ${skillSrc}`);
-    console.error('This command must be run from the readability-first-coding npm package.');
+    console.error('This command must be run from the readability-first-coding npm distribution package.');
     process.exit(1);
   }
 
@@ -217,13 +199,12 @@ function main() {
   console.log(`Installing "${SKILL_NAME}"...`);
 
   copyDir(skillSrc, target);
-  copyCommand(target);
 
   console.log(`Installed to: ${target}`);
   console.log('');
   console.log('Claude Code can discover the skill from .claude/skills/.');
-  console.log(`Direct command: /${SKILL_NAME}`);
-  console.log(`Alias command:  /${COMMAND_NAME}`);
+  console.log(`Direct Claude Code trigger: /${SKILL_NAME}`);
+  console.log('Codex trigger after installation to a Codex skill root: $code-dev');
   console.log('');
   console.log('Optional checks:');
   console.log('  Optional hook: merge scripts/pre-commit-check.sh into your existing hook; do not overwrite it.');

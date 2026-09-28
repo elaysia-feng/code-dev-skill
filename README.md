@@ -1,266 +1,57 @@
-# readability-first-coding
+# code-dev
 
-A project-aware coding skill for **Java/Spring**, **Java microservices**, **Python/FastAPI**, and **LangGraph** application code.
+面向 Java/Spring、Python/FastAPI/LangGraph 和 TypeScript/Node.js 项目的开发技能。除项目结构与抽象取舍外，合并了中文代码注释规范，并为可发布的 TypeScript npm 包提供入口、类型声明和打包建议。
 
-The goal is not "never abstract". The rule is:
+技能名、目录名和主动触发名统一为 `code-dev`：Codex 使用 `$code-dev`，Claude Code 使用 `/code-dev`。npm 分发包名暂保留 `readability-first-coding`，它只是安装包名，不是技能触发名。
 
-> Prefer the simplest structure that fits the real project, while enforcing explicit project conventions such as Java business interface contracts.
+## 安装与调用
 
-Existing project conventions take precedence over generic defaults.
+在目标项目目录安装 npm 包并执行安装器：
 
-## Install
-
-```bash
+```sh
 npm install readability-first-coding
-```
-
-Project-local Claude Code skill:
-
-```bash
 npx readability-first-install
 ```
 
-Installs to:
+默认安装到项目的 `.claude/skills/code-dev/`，可直接用 `/code-dev` 调用技能。Codex 的全局技能目录可将 `skills/code-dev/` 安装到 `.agents/skills/code-dev/`，然后用 `$code-dev` 触发。
 
-```text
-<project>/.claude/skills/readability-first-coding/
-```
+需要用户级安装时执行：
 
-Global installation:
-
-```bash
+```sh
 npx readability-first-install --global
 ```
 
-Installs to:
+自定义安装目录使用 `--target-dir`，路径指向技能目录本身。具体参数处理见 [安装器](bin/install.js)。
 
-```text
-~/.claude/skills/readability-first-coding/
-```
+## 适用范围
 
-The installer also creates the shorter `/readability-first` command alias under `.claude/commands/`.
+- 实现和审查 Java / Python 后端及 TypeScript/Node.js 代码。
+- 根据已有项目选择服务、接口、数据访问层的组织方式。
+- 在微服务、FastAPI 和 LangGraph 项目中控制职责与依赖。
+- 修改代码时维护本次涉及的注释；创建或维护 TS npm 包时按需阅读包规范。
+- 判断何时直接内联，何时需要可复用的独立组件。
 
-Claude Code can invoke the skill directly as:
+项目明确规则优先于技能的通用建议；技能不是格式化工具，也不会替代编译、测试或人工审查。
 
-```text
-/readability-first-coding
-```
+## 检查更新
 
-or through the compatibility alias:
+检查与更新是两个独立操作：
 
-```text
-/readability-first
-```
-
-## Update
-
-```bash
+```sh
 npx readability-first-check
-npx readability-first-check --json
-npx readability-first-install --check
 npx readability-first-install --update
-npx readability-first-install -U
 ```
 
-Exit codes:
+检查器支持 `--json`。退出码 `0` 表示已是最新，`1` 表示有更新，`2` 表示网络或工具错误，`3` 表示本地未安装。
 
-| Code | Meaning |
-|---|---|
-| 0 | Up to date |
-| 1 | Update available |
-| 2 | Network/tooling error |
-| 3 | Package not installed locally |
+## 仓库结构与验证
 
-## What the skill optimizes for
+| 路径 | 内容 |
+| --- | --- |
+| [技能入口](skills/code-dev/SKILL.md) | 适用场景与核心规则 |
+| `skills/code-dev/references/` | Java、Python、TypeScript 包及注释细则 |
+| `skills/code-dev/scripts/check_comments.py` | Java/Python 注释启发式检查器 |
+| `bin/` | 安装、更新检查与文件处理 |
+| `tests/` | 安装和更新行为测试 |
 
-```text
-Existing project consistency
-> Explicit project constraints
-> Easy to understand
-> Directness
-> Easy to modify
-> Fewer unnecessary dependencies
-> Less duplication
-> Reusability
-> Architectural elegance
-```
-
-The skill does **not** blindly reject repositories, shared modules, enums, factories, or thin boundaries. It rejects indirection that has no project rule or meaningful responsibility.
-
-## Java business contract rule
-
-Java business code is interface-first, but the physical structure depends on the project type.
-
-### Ordinary monolithic Spring project
-
-Use `service/` or the repository's existing `services/` package:
-
-```text
-service/
-├── OrderService.java
-├── UserService.java
-└── impl/
-    ├── OrderServiceImpl.java
-    └── UserServiceImpl.java
-```
-
-Controllers and other callers depend on `OrderService`, not `OrderServiceImpl`.
-
-### Multi-Maven project with dedicated `*.biz`
-
-When business logic is separated into a Maven module such as `community.biz`, keep contracts and implementations inside each business domain:
-
-```text
-community.biz/
-└── src/main/java/com/mware/community/biz/
-    └── like/
-        ├── LikeService.java
-        ├── LikeRedisStore.java
-        ├── LikeStreamRelay.java
-        └── impl/
-            ├── LikeServiceImpl.java
-            ├── LikeRedisStoreImpl.java
-            └── LikeStreamRelayImpl.java
-```
-
-Inside a dedicated `biz` module, the interface-first rule also covers business-behavior collaborators such as Store, Relay, Manager, Handler, Processor, and adapters.
-
-DTOs, entities, enums, exceptions, configuration classes, and constants do not need meaningless interface wrappers.
-
-Domain enums are still valid when they model real states:
-
-```java
-public enum OrderStatus {
-    PENDING,
-    PAID,
-    CANCELLED
-}
-```
-
-The thing to avoid is a generic global `CommonConstants`/`CommonEnums` dumping ground.
-
-## Python / FastAPI defaults
-
-Recommended package shape for a non-trivial application:
-
-```text
-src/
-└── app/
-    ├── __init__.py
-    ├── main.py
-    ├── api/
-    ├── core/
-    ├── graphs/
-    ├── schemas/
-    ├── services/
-    └── models/
-```
-
-Directories are optional; create only what the application actually needs.
-
-Do not add `utils/`, `common/`, `repositories/`, or other generic layers just because a template has them. If the existing project already uses one, preserve it consistently.
-
-## LangGraph structure
-
-Small graph:
-
-```text
-graphs/
-└── research_assistant.py
-```
-
-Keep state, a few small nodes, routing, and composition together when that is easiest to read.
-
-Complex graph:
-
-```text
-graphs/
-└── research_assistant/
-    ├── __init__.py
-    ├── graph.py
-    ├── state.py
-    ├── nodes/
-    │   ├── __init__.py
-    │   ├── plan.py
-    │   ├── retrieve.py
-    │   ├── grade_documents.py
-    │   └── generate_answer.py
-    ├── tools.py
-    └── prompts.py              # optional
-```
-
-Rules:
-
-- one meaningful node per file when a graph becomes complex
-- graph-specific state/nodes/tools stay with that graph
-- shared `core/langgraph/` code exists only when multiple graphs genuinely reuse it
-- `__init__.py` stays empty or contains lightweight exports only
-- do not compile graphs, connect databases, load large models, or perform network calls from `__init__.py`
-
-## Skill structure
-
-```text
-code-dev-skill/
-├── README.md
-├── package.json
-├── bin/
-│   ├── install.js
-│   └── check-update.js
-├── commands/
-│   └── readability-first.md
-└── skills/
-    └── readability-first-coding/
-        ├── SKILL.md
-        ├── assets/
-        │   └── ide-settings.json
-        ├── evals/
-        │   ├── evals.json
-        │   └── trigger-evals.json
-        ├── references/
-        │   ├── examples.md
-        │   ├── java-guidelines.md
-        │   ├── microservice-guidelines.md
-        │   ├── project-structure.md
-        │   └── python-guidelines.md
-        └── scripts/
-            ├── check-abstraction-smell.py
-            └── pre-commit-check.sh
-```
-
-### `SKILL.md`
-
-Small source-of-truth entry point: priorities, Java business contracts, abstraction gate, workflow, and reference routing.
-
-### `references/`
-
-Detailed rules loaded only when relevant:
-
-| File | Purpose |
-|---|---|
-| `java-guidelines.md` | Java/Spring interface-first business conventions |
-| `python-guidelines.md` | FastAPI + LangGraph conventions |
-| `microservice-guidelines.md` | Cross-service boundaries and shared-code rules |
-| `project-structure.md` | Directory/package layouts |
-| `examples.md` | Representative good/bad shapes |
-
-### `evals/`
-
-Behavior/activation regression cases for checking that the skill remains useful after edits.
-
-### `scripts/`
-
-Best-effort static checks for abstraction smells. Findings are review prompts, not architectural truth.
-
-## Smell checker
-
-```bash
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang java
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang python
-python3 skills/readability-first-coding/scripts/check-abstraction-smell.py . --lang auto
-```
-
-The checker is intentionally heuristic. Existing project conventions and explicitly required business interfaces can legitimately produce warnings.
-
-## License
-
-MIT © elaysia-feng
+修改安装器后运行 `npm test`；发布前可用 `npm pack --dry-run --ignore-scripts` 检查实际打包内容。

@@ -1,5 +1,5 @@
 {
-  "_comment": "Multi-editor settings for readability-first coding. Apply the relevant section to your editor. IntelliJ IDEA users: configure these equivalents under Settings > Editor > Code Style > Java/Python — disable 'Organize imports on the fly', disable 'Code cleanup on save', and disable auto-refactoring suggestions.",
+  "_comment": "Multi-editor settings for code-dev. Apply the relevant section to your editor. IntelliJ IDEA users: configure these equivalents under Settings > Editor > Code Style > Java/Python — disable 'Organize imports on the fly', disable 'Code cleanup on save', and disable auto-refactoring suggestions.",
   "vscode": {
     "editor.minimap.enabled": false,
     "editor.wordWrap": "on",

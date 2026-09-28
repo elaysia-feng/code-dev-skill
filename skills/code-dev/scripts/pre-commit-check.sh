@@ -9,12 +9,13 @@ STRICT="${READABILITY_FIRST_STRICT:-0}"
 
 if [ ! -f "$CHECKER" ]; then
     for candidate in \
-        "$PROJECT_ROOT/.claude/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$PROJECT_ROOT/.agents/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$PROJECT_ROOT/.omc/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$PROJECT_ROOT/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$HOME/.claude/skills/readability-first-coding/scripts/check-abstraction-smell.py" \
-        "$HOME/.codex/skills/readability-first-coding/scripts/check-abstraction-smell.py"; do
+        "$PROJECT_ROOT/.claude/skills/code-dev/scripts/check-abstraction-smell.py" \
+        "$PROJECT_ROOT/.agents/skills/code-dev/scripts/check-abstraction-smell.py" \
+        "$PROJECT_ROOT/.omc/skills/code-dev/scripts/check-abstraction-smell.py" \
+        "$PROJECT_ROOT/skills/code-dev/scripts/check-abstraction-smell.py" \
+        "$HOME/.claude/skills/code-dev/scripts/check-abstraction-smell.py" \
+        "$HOME/.agents/skills/code-dev/scripts/check-abstraction-smell.py" \
+        "$HOME/.codex/skills/code-dev/scripts/check-abstraction-smell.py"; do
         if [ -f "$candidate" ]; then
             CHECKER="$candidate"
             break
@@ -23,7 +24,7 @@ if [ ! -f "$CHECKER" ]; then
 fi
 
 if [ ! -f "$CHECKER" ]; then
-    echo '[readability-first] 找不到检查器，跳过 advisory smell check。'
+    echo '[code-dev] 找不到检查器，跳过 advisory smell check。'
     [ "$STRICT" = "1" ] && exit 1
     exit 0
 fi
@@ -33,7 +34,7 @@ if [ -z "$PYTHON_BIN" ]; then
     PYTHON_BIN="$(command -v python3 || command -v python || true)"
 fi
 if [ -z "$PYTHON_BIN" ]; then
-    echo '[readability-first] 找不到 Python，跳过 advisory smell check。'
+    echo '[code-dev] 找不到 Python，跳过 advisory smell check。'
     [ "$STRICT" = "1" ] && exit 1
     exit 0
 fi
