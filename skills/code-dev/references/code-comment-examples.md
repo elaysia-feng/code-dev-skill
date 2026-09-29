@@ -42,7 +42,7 @@ def cache_ttl(tenant_id: str) -> int:
 int updated = orderMapper.cancelIfPending(orderId);
 ```
 
-多阶段业务流程应按主要阶段编号；某个阶段需要展开时用 1.1、1.2 标出子步骤。只标记有意义的阶段，不给每条查询或赋值编号。
+多阶段业务流程按真实层级编号：例如 1.、2.、3. 表示同级阶段；1.1、1.2 表示第一阶段的子步骤；需要更深展开时可用 1.2.1。下一同级阶段继续编号为 2.，不重复使用 1.。只标记有意义的阶段，不给每条查询或赋值编号。
 
 ```java
 public boolean cancelIfPending(long orderId) {
