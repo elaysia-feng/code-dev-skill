@@ -42,7 +42,22 @@ def cache_ttl(tenant_id: str) -> int:
 int updated = orderMapper.cancelIfPending(orderId);
 ```
 
-多阶段流程可以编号，但不要给每条查询或赋值加一个步骤。简单属性可以不写 docstring：
+多阶段业务流程应按主要阶段编号；某个阶段需要展开时用 1.1、1.2 标出子步骤。只标记有意义的阶段，不给每条查询或赋值编号。
+
+```java
+public boolean cancelIfPending(long orderId) {
+    // 1. 拒绝无效订单号，避免执行无意义的持久化操作。
+    // 1.1 订单编号必须为正数。
+    if (orderId <= 0) {
+        throw new IllegalArgumentException("订单 ID 必须为正数");
+    }
+
+    // 2. 仅更新待支付订单，避免覆盖并发支付成功后的状态。
+    return orderMapper.cancelIfPending(orderId) == 1;
+}
+```
+
+简单属性可以不写 docstring：
 
 ```python
 @property

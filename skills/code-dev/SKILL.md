@@ -38,6 +38,6 @@ Java 业务行为组件遵循 [`references/java-guidelines.md`](references/java-
 ## 可选检查
 
 需要辅助审查抽象时，可运行 `scripts/check-abstraction-smell.py`。它只提供启发式线索；须结合项目约定人工判断，不能据此自动改写架构。
-新增或修改 Java/Python 文件后，如有帮助，可运行 `scripts/check_comments.py`；该检查器不覆盖 TypeScript，WARNING 需人工判断，不要求为清零而堆注释。
+新增或修改 Java/Python 文件后，如有帮助，可运行 `scripts/check_comments.py`；该检查器不覆盖 TypeScript。WARNING 需人工判断；多阶段方法缺少编号时按规范补齐，不为无意义提示堆注释。
 
 完成前确认需求已落实、相关行为已核对，并说明尚未验证的部分。

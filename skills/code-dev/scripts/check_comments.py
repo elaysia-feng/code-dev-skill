@@ -9,7 +9,7 @@
 - TODO 未标注负责人                                 -> ERROR
 - 有参数但文档缺 @param / Args:                      -> WARNING
 - 有返回值但文档缺 @return / Returns:                -> WARNING
-- 复杂方法需要人工复核可读性，不要求步骤编号          -> WARNING
+- 复杂方法缺少主要步骤编号 / 需要人工复核可读性        -> WARNING
 
 用法::
 
@@ -48,7 +48,7 @@ TODO_FORMAT_RE = re.compile(r"TODO\s*\([^()\r\n]*[^()\s][^()\r\n]*\)\s*:\s*\S", 
 #: 复杂方法判定阈值
 COMPLEX_LINE_THRESHOLD = 20
 COMPLEX_BRANCH_THRESHOLD = 3
-#: 方法体短于这个行数时一律视为简单方法，避免对短小函数强加步骤编号
+#: 短方法不自动触发复杂度提示；短小但确有多阶段逻辑时仍应按规范编号。
 SIMPLE_LINE_THRESHOLD = 10
 
 #: 递归目录时跳过的目录名
@@ -272,10 +272,14 @@ def _check_python_node(path: Path, node: ast.AST, kind: str,
         issues.append(Issue(path, line, WARNING, "missing-returns",
                             f"`{name}` 有返回值但 docstring 缺少 Returns: 小节"))
 
-    # 4. 复杂度仅提示人工复核，编号数量不能证明注释质量
+    # 4. 复杂方法缺少阶段编号时提示人工补充，并复核业务约束是否清楚
     if _is_complex_python(node):
+        end_line = getattr(node, "end_lineno", line)
+        if not has_step_comments(lines, line, end_line):
+            issues.append(Issue(path, line, WARNING, "missing-step-comments",
+                                f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
         issues.append(Issue(path, line, WARNING, "review-complexity",
-                            f"`{name}` 流程较复杂，请复核业务约束是否清楚；无需强制编号"))
+                            f"`{name}` 流程较复杂，请复核步骤编号和业务约束是否清楚"))
     return issues
 
 
@@ -633,13 +637,16 @@ def _check_java_method(path: Path, match: "re.Match[str]", index: int,
         issues.append(Issue(path, lineno, WARNING, "missing-return",
                             f"`{name}` 有返回值但 Javadoc 缺少 @return"))
 
-    # 3. 复杂度仅供人工复核，抽象或接口方法没有方法体时跳过
+    # 3. 复杂方法缺少阶段编号时提示人工补充，抽象或接口方法没有方法体时跳过
     body = _find_java_body(code, index)
     if body is not None:
         start, end = body
         if _is_complex_java(code, start, end):
+            if not has_step_comments(lines, start + 1, end + 1):
+                issues.append(Issue(path, lineno, WARNING, "missing-step-comments",
+                                    f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
             issues.append(Issue(path, lineno, WARNING, "review-complexity",
-                                f"`{name}` 流程较复杂，请复核业务约束是否清楚；无需强制编号"))
+                                f"`{name}` 流程较复杂，请复核步骤编号和业务约束是否清楚"))
     return issues
 
 
