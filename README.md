@@ -4,6 +4,30 @@
 
 技能名、目录名和主动触发名统一为 `code-dev`：Codex 使用 `$code-dev`，Claude Code 使用 `/code-dev`。`package.json` 中的包名暂保留 `readability-first-coding` 作为兼容标识；安装从 GitHub 获取，不依赖 npm registry 上的同名包。
 
+## Agent Plugins 标准格式
+
+仓库按 [Agent Plugins 1.0.0 规范](https://agent-plugins.org/specification) 组织，根目录的 `plugin.json` 是插件清单，声明插件名 `code-dev`、规范版本及发布元数据。技能入口遵循 [Agent Skills 规范](https://agentskills.io/specification)。
+
+插件的核心目录如下，`scripts/`、`references/`、`assets/` 和 `evals/` 保留在技能目录内：
+
+```text
+code-dev-skill/
+├── plugin.json
+├── skills/
+│   └── code-dev/
+│       ├── SKILL.md
+│       ├── scripts/
+│       ├── references/
+│       ├── assets/
+│       └── evals/
+├── package.json
+└── bin/
+```
+
+支持 Agent Plugins 1.0.0 的客户端可将仓库根目录或 npm 包解压后的根目录作为插件目录加载，从 `skills/` 发现 `code-dev`。本插件只提供技能，不包含 MCP 服务，因此不需要 `mcp.json`；`bin/` 是独立的安装工具。
+
+标准插件加载与下方的单技能安装是两种入口：加载插件时使用包含 `plugin.json` 的根目录，安装单技能时使用 `skills/code-dev/`。客户端是否支持该标准需以其自身说明为准。发布时保持 `plugin.json` 与 `package.json` 的版本一致。
+
 ## 安装与调用
 
 在目标项目目录从 GitHub 安装包并执行安装器：
@@ -48,6 +72,7 @@ npx readability-first-install --update
 
 | 路径 | 内容 |
 | --- | --- |
+| [插件清单](plugin.json) | Agent Plugins 1.0.0 元数据与规范标识 |
 | [技能入口](skills/code-dev/SKILL.md) | 适用场景与核心规则 |
 | `skills/code-dev/references/` | Java、Python、TypeScript 包及注释细则 |
 | `skills/code-dev/scripts/check_comments.py` | Java/Python 注释启发式检查器 |

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "code-dev",
+  "version": "1.2.0",
+  "description": "用于 Java/Spring、Python/FastAPI/LangGraph 和 TypeScript/Node.js 项目的实现、审查与重构，按需提供项目结构、代码注释和 TypeScript npm 包规范。",
+  "author": {
+    "name": "elaysia-feng"
+  },
+  "homepage": "https://github.com/elaysia-feng/code-dev-skill",
+  "repository": "https://github.com/elaysia-feng/code-dev-skill",
+  "license": "MIT",
+  "keywords": [
+    "agent-plugin",
+    "agent-skill",
+    "code-dev",
+    "java",
+    "python",
+    "typescript",
+    "comments",
+    "npm"
+  ]
+}

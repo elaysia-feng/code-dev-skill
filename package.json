@@ -33,6 +33,7 @@
     "readability-first-check": "./bin/check-update.js"
   },
   "files": [
+    "plugin.json",
     "skills/",
     "bin/"
   ],
