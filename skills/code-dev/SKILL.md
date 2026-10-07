@@ -82,6 +82,6 @@ Exit codes: `0` means no ERROR (a WARNING may still be present); `1` means an ER
 
 `check-abstraction-smell.py` exits `0` below the threshold, `1` when `--fail-on` is reached, and `2` when a source file cannot be decoded.
 
-Optional git hook: merge `scripts/pre-commit-check.sh` into the existing hook, do not overwrite it. It does not block by default; it only blocks on WARNING-level issues when `READABILITY_FAIL_ON=warning` is set.
+Optional git hook: merge `scripts/pre-commit-check.sh` into the existing hook, do not overwrite it. It runs **both** checkers over the staged Java/Python files — previously it ran only the abstraction checker, so comment rules had no coverage at the commit gate. Smell findings are advisory unless `READABILITY_FAIL_ON=warning` is set, but two things always block because they mean the check did not finish: a source file that is not UTF-8, and any `check_comments.py` ERROR (syntax error, unreadable file, or a TODO without an owner).
 
 Before finishing, confirm that the requirements have been delivered, that the mandatory rules have been checked one by one, and state what has not yet been verified.

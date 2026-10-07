@@ -297,7 +297,8 @@ function main() {
   console.log('Codex trigger after installation to a Codex skill root: $code-dev');
   console.log('');
   console.log('Optional checks:');
-  console.log('  Optional hook: merge scripts/pre-commit-check.sh into your existing hook; do not overwrite it.');
+  console.log('  Optional hook: merge scripts/pre-commit-check.sh into your existing hook;');
+  console.log('    it checks staged files with both checkers; not overwriting your hook.');
   console.log(`  Run smell checker:        python3 ${target}/scripts/check-abstraction-smell.py . --lang auto`);
 }
 

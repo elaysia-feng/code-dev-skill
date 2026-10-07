@@ -417,6 +417,41 @@ test('非 UTF-8 源文件被两个检查器一致拒绝，且提示可执行', t
   assert.equal(smell.status, 2, '无法解码时退出码应为 2');
 });
 
+test('hook 同时跑两个检查器：注释 ERROR 与非 UTF-8 都会阻断', t => {
+  const dir = workspace(t);
+  const bash = process.env.READABILITY_BASH || (process.platform === 'win32'
+    ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
+  const hook = path.join(root, 'skills/code-dev/scripts/pre-commit-check.sh');
+
+  // 1. 待办缺负责人：只有 check_comments.py 会报 ERROR，抽象检查器看不到。
+  //    这条用例证明注释规范在提交卡点上确实被覆盖了。
+  write(dir, 'Todo.java', 'public class Todo {\n    // TODO: 缺负责人\n    void run() {}\n}\n');
+  git(dir, 'init', '-q');
+  git(dir, 'add', '.');
+  let out = spawnSync(bash, [hook], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, READABILITY_PYTHON: python, READABILITY_FAIL_ON: 'none' },
+  });
+  assert.equal(out.status, 1, `待办缺负责人应阻断:\n${out.stdout}${out.stderr}`);
+  assert.match(out.stdout, /todo-no-owner/, out.stdout);
+  assert.match(out.stdout, /注释检查/, 'hook 应显式说明注释检查已运行');
+
+  // 2. 非 UTF-8 源文件：默认 advisory 口径也必须阻断，因为两个检查器都读不了它
+  const gbk = workspace(t);
+  const encoded = spawnSync(python, ['-c',
+    "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes('// 中文\\npublic class L {}\\n'.encode('gbk'))",
+    path.join(gbk, 'Legacy.java')], { encoding: 'utf8' });
+  assert.equal(encoded.status, 0, encoded.stderr);
+  git(gbk, 'init', '-q');
+  git(gbk, 'add', '.');
+  out = spawnSync(bash, [hook], {
+    cwd: gbk, encoding: 'utf8',
+    env: { ...process.env, READABILITY_PYTHON: python, READABILITY_FAIL_ON: 'none' },
+  });
+  assert.equal(out.status, 1, `非 UTF-8 文件应阻断:\n${out.stdout}${out.stderr}`);
+  assert.match(out.stdout, /UNREADABLE|read-error/, out.stdout);
+});
+
 test('Git Bash hook 实际调用检查器并传递严重程度阈值', t => {
   const dir = workspace(t);
   git(dir, 'init', '-q');

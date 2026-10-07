@@ -4,6 +4,19 @@ All notable changes to this skill are recorded here. The version is kept in
 sync between `package.json` and `plugin.json`; a release is incomplete unless
 both are bumped.
 
+## 1.3.2
+
+### Fixed
+
+- `pre-commit-check.sh` ran only `check-abstraction-smell.py`. Comment rules —
+  the bulk of what this skill actually specifies — had **no coverage at the commit
+  gate at all**, while `check_comments.py` is the checker that carries ERROR
+  semantics. It now runs both, over the staged Java/Python files only.
+- The hook's documented contract was inaccurate once 1.3.1 made undecodable files
+  fatal: it said "advisory by default", but a non-UTF-8 source file blocks even
+  with `READABILITY_FAIL_ON=none`. The wording in the hook header, `SKILL.md`,
+  `README.md` and the installer's output now states exactly what always blocks.
+
 ## 1.3.1
 
 Source encoding is now an explicit part of the standard rather than an

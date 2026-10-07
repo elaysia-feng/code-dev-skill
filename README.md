@@ -85,7 +85,7 @@ The checker supports `--json`. Exit code `0` means it is already up to date, `1`
 | `skills/code-dev/assets/ide-settings.json` | Editor settings that stop tooling from rewriting the code this standard produces |
 | `skills/code-dev/scripts/check_comments.py` | Heuristic Java/Python comment checker |
 | `skills/code-dev/scripts/check-abstraction-smell.py` | Abstraction smell checker (single-implementation interfaces, small dumping packages, deep inheritance, pass-through methods) |
-| `skills/code-dev/scripts/pre-commit-check.sh` | Optional git hook; advisory by default |
+| `skills/code-dev/scripts/pre-commit-check.sh` | Optional git hook; runs **both** checkers over the staged files |
 | `skills/code-dev/evals/` | Behaviour regression cases — **kept in the repository, excluded from the npm package** |
 | `bin/` | Installer, update checker, and shared semver comparison |
 | `tests/` | Tests for the installer, semver comparison, and both checkers |
