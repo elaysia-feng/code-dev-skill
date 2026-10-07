@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
 """
-Check a Java/Python codebase for abstraction smells that violate
-the code-dev skill.
+扫描 Java/Python 代码库中违反 code-dev skill 的抽象坏味道。
 
-Smells detected:
-  - Single-implementation interfaces (XxxService -> XxxServiceImpl)
-    - Exempted when the implementation lives in an `impl/` subfolder (project
-      convention — see references/java-guidelines.md)
-  - Empty or single-class common/util/shared/base packages
-  - Unnecessary inheritance chains (depth > 2)
-  - Pass-through wrapper methods
+检测的坏味道：
+  - 只有唯一实现类、且实现类不在 impl/ 子包中的接口（XxxService -> XxxServiceImpl）
+  - 近乎空置或只含转发代码的 common/util/shared/base 包
+  - 过多继承链（深度 > 2）
+  - 转发包装方法
+  - Python 中只有一个具体子类的 ABC
 
-Usage:
-  python check-abstraction-smell.py <project-root> [--lang java|python] [--json]
+实现类位于 `impl/` 子包时**不**报警：规范要求 Java 业务组件一律 interface +
+impl/，所以该布局本身就是合规结果，报警等于要求作者违反规范。
 
-Exit codes:
+用法：
+  python check-abstraction-smell.py <project-root>
+      [--lang java|python|auto] [--json]
+      [--fail-on none|warning|info] [--max-depth N] [--min-package-files N]
+      [--files <路径列表>] [--staged]
+
+  --files    只报告涉及所选文件的发现，但分析仍读取全部实现，
+             以免把"未修改的实现"误判成不存在
+  --staged   分析 Git 暂存区内容而非工作区
+  --fail-on  达到该严重程度时以退出码 1 阻断；默认 none，只报告不阻断
+
+退出码：
   0 - 未达到阻断阈值（默认只报告）
   1 - 达到 --fail-on 指定的阻断阈值
-  2 - Error running the check
+  2 - 执行检查时出错
 """
 
 import argparse
@@ -30,16 +39,21 @@ from collections import defaultdict
 from pathlib import Path
 
 def _strip_generics(text: str) -> str:
-    """Remove generic type parameters including nested angle brackets.
+    """去除泛型类型参数，含嵌套的尖括号。
 
-    Handles cases like: class Foo<T extends Comparable<T>> extends Bar
-    by iteratively stripping innermost <...> pairs until none remain.
-    Also handles bounded generics: T extends Foo & Bar.
+    反复剥掉最内层的 <...> 直到没有为止，因此能处理
+    class Foo<T extends Comparable<T>> extends Bar 这样的写法。
+    同时支持带约束的泛型：T extends Foo & Bar。
+
+    Args:
+        text: 待处理的源码片段。
+
+    Returns:
+        去掉全部泛型类型参数后的文本。
     """
     while True:
-        # Require at least one word character between < >, and reject content
-        # containing logical operators (&&, ||) which indicates a comparison
-        # expression rather than a generic type parameter.
+        # 要求 < > 之间至少有一个单词字符，并拒绝含有逻辑运算符（&&、||）的内容：
+        # && / || 出现在这里说明是比较表达式，而不是泛型类型参数。
         cleaned = re.sub(r'<(?=[^\s>]*\w)(?![^<>]*(?:&&|\|\|))[^<>]*>', '', text)
         if cleaned == text:
             break
@@ -48,9 +62,15 @@ def _strip_generics(text: str) -> str:
 
 
 def _split_comma_aware(text: str) -> list[str]:
-    """Split text by commas, respecting bracket nesting (angle, square, round).
+    """按逗号切分文本，同时感知尖括号、方括号、圆括号的嵌套层级。
 
-    Handles cases like: Generic[T, U], Dict[str, int], List[Tuple[int, str]]
+    因此 Generic[T, U]、Dict[str, int]、List[Tuple[int, str]] 不会被误切。
+
+    Args:
+        text: 待切分的文本。
+
+    Returns:
+        切分后的片段列表，末尾非空的残余片段也会计入。
     """
     parts = []
     depth = 0
@@ -79,8 +99,15 @@ _DEPENDENCY_DIRS = frozenset({
 
 
 def _rglob_filtered(root: Path, pattern: str) -> list[Path]:
-    """Recursively glob for files matching *pattern*, skipping well-known
-    dependency / cache directories to avoid false positives and wasted work."""
+    """递归匹配 *pattern* 对应的文件，跳过已知的依赖与缓存目录，避免误报和无谓的扫描开销。
+
+    Args:
+        root: 扫描根目录，匹配结果以其为基准计算相对路径。
+        pattern: 传给 Path.rglob 的匹配模式。
+
+    Returns:
+        命中且路径中不含依赖/缓存目录的文件列表。
+    """
     return [
         f for f in root.rglob(pattern)
         if not any(part in _DEPENDENCY_DIRS for part in f.relative_to(root).parts)
@@ -88,60 +115,66 @@ def _rglob_filtered(root: Path, pattern: str) -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
-# Smell detectors
+# 坏味道检测器
 # ---------------------------------------------------------------------------
 
 def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None) -> list[dict]:
-    """Find interfaces that have exactly one implementation class."""
+    """查找只有唯一实现类的接口。
+
+    Args:
+        root: 项目根目录，用于生成相对路径。
+        file_list: 已选定的 Java 文件；为 None 时自行扫描 root。
+
+    Returns:
+        single_impl_interface 类型的问题列表，含"唯一实现"与"无任何实现"两种。
+    """
     results = []
     java_files = file_list if file_list is not None else _rglob_filtered(root, "*.java")
     interfaces = {}
-    implementations = defaultdict(set)  # use set to deduplicate
+    implementations = defaultdict(set)  # 用 set 去重
 
+    # 1. 逐行扫描源码，同时登记接口声明与实现关系
     for f in java_files:
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
 
-        # Detect interface and implementation declarations (line-by-line with
-        # multi-line peek-ahead for 'class\n    implements' patterns; avoids
-        # re.DOTALL false matches and comment/string false positives)
+        # 1.1 逐行匹配声明：跨行的 `class ... implements` 用有限前瞻拼接。
+        #     不用 re.DOTALL，避免误匹配注释和字符串字面量。
         lines = content.split('\n')
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-            # Strip inline block comments BEFORE skip checks so that
-            # '/* comment */ class Foo ...' is not missed.
+            # 先剥离行内块注释再做跳过判断，否则 `/* 注释 */ class Foo ...` 会被整行漏掉。
             line = re.sub(r'/\*.*?\*/', '', line).strip()
-            # Skip comment-only and annotation-only lines
+            # 跳过纯注释行
             if line.startswith('//') or line.startswith('/*') or line.startswith('*'):
                 i += 1; continue
-            # Skip annotation-only lines (no class/interface keyword on same line)
+            # 跳过纯注解行：同一行里没有 class/interface 关键字
             if line.startswith('@') and not re.search(r'\b(class|interface)\b', line):
                 i += 1; continue
-            # Strip remaining single-line comments (// ...)
+            # 剥离剩余的单行注释（// ...）
             line = re.sub(r'//.*$', '', line)
 
-            # Detect interface declarations (exclude @interface annotation types;
-            # the negative-lookbehind alone misses `public @interface Foo` because the
-            # char before `interface` in that string is a space, not `@`.)
+            # 1.2 登记接口声明，排除 @interface 注解类型：只靠负向后顾拦不住
+            #     `public @interface Foo`，因为该字符串里 interface 前是空格而不是 @。
             if '@interface' not in line:
                 iface_match = re.search(r'(?<!\w)interface\s+(\w+)', line)
                 if iface_match:
                     interfaces[iface_match.group(1)] = str(f.relative_to(root))
 
-            # Detect class/record/enum declarations that implement interfaces
+            # 1.3 匹配实现了接口的 class/record/enum 声明
             m = re.search(r'\b(?:class|record|enum)\s+(\w+)(?:(?!\b(?:class|record|enum|interface)\b).)*\bimplements\s+(.+)', line)
             if not m:
-                # Peek ahead ≤2 lines for multi-line declarations
+                # 1.3.1 当前行没有 implements，向后最多前瞻 4 行拼出跨行声明
                 class_decl = re.search(r'\b(?:class|record|enum)\s+(\w+)', line)
                 if class_decl:
                     j = i + 1
                     combined = line
-                    while j < len(lines) and j < i + 5:   # increased from 3 to 5 for multi-annotation classes
+                    while j < len(lines) and j < i + 5:   # 由 3 放宽到 5，以覆盖带多个注解的类
                         nl = lines[j].strip()
-                        # Strip block comments first so '/* ... */ code' is not skipped
+                        # 先剥离块注释，否则 `/* ... */ 代码` 会被当成注释行跳过
                         nl_nc = re.sub(r'/\*.*?\*/', '', nl).strip()
                         nl_nc = re.sub(r'//.*$', '', nl_nc).strip()
                         if nl_nc.startswith('/*') or nl_nc.startswith('*'):
@@ -149,7 +182,7 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
                         if nl_nc.startswith('@'):
                             j += 1; continue
                         if nl_nc == '':
-                            j += 1; continue   # skip blank lines instead of breaking
+                            j += 1; continue   # 跳过空行而不是中断拼接
                         combined += ' ' + nl_nc
                         if 'implements' in nl_nc:
                             m = re.search(
@@ -158,31 +191,30 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
                             )
                             break
                         j += 1
-                    # Skip past lines already consumed by the peek-ahead
+                    # 跳过已被前瞻消耗的行
                     if m:
                         i = j
             if m:
                 iface_list_raw = re.split(r'\s*[{;]', m.group(2))[0]
-                # Strip generics BEFORE splitting on commas so that commas
-                # inside generic type parameters (e.g. Bar<Map<String, Object>>)
-                # are not treated as interface-list separators.
+                # 先剥离泛型再按逗号切分，避免泛型实参里的逗号
+                # （如 Bar<Map<String, Object>>）被当成接口列表分隔符。
                 iface_list_raw = _strip_generics(iface_list_raw)
                 for raw_name in iface_list_raw.split(','):
-                    iface_name = raw_name.strip().split('.')[-1]  # simple name only
-                    iface_name = iface_name.rstrip('>')  # strip residual '>'
+                    iface_name = raw_name.strip().split('.')[-1]  # 只取简单类名
+                    iface_name = iface_name.rstrip('>')  # 去掉残留的 '>'
                     if iface_name:
                         rel_path = str(f.relative_to(root))
                         implementations[iface_name].add(rel_path)
             i += 1
 
+    # 2. 实现类恰好一个且接口已声明时判为坏味道
     for iface_name, impl_set in implementations.items():
         impl_count = len(impl_set)
         if impl_count == 1 and iface_name in interfaces:
             impl_paths = sorted(impl_set)
-            # Exempt the interface + impl/ folder convention: when the project
-            # adopts this layout (interface in parent package, implementation in
-            # an `impl/` subfolder), the single implementation is project-mandated
-            # convention, not unsolicited abstraction. See references/java-guidelines.md.
+            # 2.1 豁免"接口 + impl/ 子包"约定：项目采用该布局（接口在父包、实现在
+            #     impl/ 子包）时，唯一实现是项目强制约定而非多余的抽象。
+            #     依据 references/java-guidelines.md。
             if any("impl" in Path(p).parts for p in impl_paths):
                 continue
             results.append({
@@ -190,10 +222,10 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
                 "severity": "warning",
                 "interface": interfaces[iface_name],
                 "implementations": impl_paths,
-                "message": f"Interface '{iface_name}' has only 1 implementation. Consider using a concrete class unless multiple implementations are needed."
+                "message": f"接口 '{iface_name}' 只有 1 个实现且未放在 impl/ 子包中。规范要求 Java 业务组件一律 interface + impl/：把实现移到同包的 impl/ 下，并让调用方依赖接口类型。"
             })
 
-    # Interfaces declared in the project but never implemented
+    # 3. 报告项目里声明了却从未被实现的接口
     for iface_name, file_path in interfaces.items():
         if iface_name not in implementations:
             results.append({
@@ -208,30 +240,38 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
 
 
 def find_suspect_packages(root: Path, min_files: int = 2) -> list[dict]:
-    """Find common/util/shared/base packages that are nearly empty or contain only pass-through code.
+    """查找近乎空置或只含转发代码的 common/util/shared/base 包。
 
-    A package with <= min_files source files is considered suspect because
-    such small packages often exist without explicit user request and may
-    represent unnecessary abstraction.
+    源文件数不超过 min_files 的包判定为可疑：这类小包往往并非用户明确要求，
+    可能是多余的抽象。
+
+    Args:
+        root: 项目根目录。
+        min_files: 仍算可疑的源文件数量上限（含边界）。
+
+    Returns:
+        suspect_package 类型的问题列表。
     """
     results = []
-    # `core` is intentionally excluded: FastAPI + LangGraph projects use `core/`
-    # as the standard location for infrastructure (config, llm, middleware, langgraph/).
+    # `core` 是有意排除的：FastAPI + LangGraph 项目约定用 `core/` 放基础设施
+    # （config、llm、middleware、langgraph/ 等）。
     suspect_names = {"common", "util", "utils", "shared", "framework", "base"}
-    # Exclusions matched against full path components (exact match)
+    # 排除项按完整路径分段精确匹配
     exclude_dirs = {"node_modules", ".git", "__pycache__", "venv", ".venv",
                     "target", "build", "dist", ".mvn", ".gradle", "egg-info"}
 
+    # 1. 筛选名字可疑、且路径不在排除目录中的包
     for pkg_dir in root.rglob("*"):
         if not pkg_dir.is_dir():
             continue
         if pkg_dir.name not in suspect_names:
             continue
-        # Check each path component against exclude list (exact match, not substring)
+        # 1.1 逐段精确匹配排除项，而不是子串匹配
         if any(part in exclude_dirs for part in pkg_dir.relative_to(root).parts):
             continue
 
         files = [f for f in pkg_dir.rglob("*") if f.is_file() and f.suffix in (".java", ".py") and not any(p in exclude_dirs for p in f.relative_to(pkg_dir).parts)]
+        # 2. 源文件数量未超过阈值时报告
         if len(files) <= min_files:
             results.append({
                 "type": "suspect_package",
@@ -248,15 +288,25 @@ def find_suspect_packages(root: Path, min_files: int = 2) -> list[dict]:
 def find_deep_inheritance(root: Path, max_depth: int = 2,
                            file_list_java: list[Path] | None = None,
                            file_list_py: list[Path] | None = None) -> list[dict]:
-    """Find class inheritance chains deeper than max_depth levels (Java + Python)."""
-    results = []
-    extends_graph = {}       # class_name -> parent_name
-    class_files = {}         # class_name -> file path
+    """查找继承链深度超过 max_depth 的类（Java 与 Python）。
 
-    # --- Java pass ---
+    Args:
+        root: 项目根目录，用于生成相对路径。
+        max_depth: 达到该深度即报告。
+        file_list_java: 已选定的 Java 文件；为 None 时自行扫描 root。
+        file_list_py: 已选定的 Python 文件；为 None 时自行扫描 root。
+
+    Returns:
+        deep_inheritance 类型的问题列表，含完整继承链文本。
+    """
+    results = []
+    extends_graph = {}       # 类名 -> 父类名
+    class_files = {}         # 类名 -> 文件路径
+
+    # 1. Java 侧：登记类声明及其 extends 父类
     for f in (file_list_java if file_list_java is not None else _rglob_filtered(root, "*.java")):
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
 
@@ -264,12 +314,11 @@ def find_deep_inheritance(root: Path, max_depth: int = 2,
         i = 0
         while i < len(lines_j):
             stripped = lines_j[i].strip()
-            # Strip inline block comments BEFORE skip checks so that
-            # '/* comment */ class Foo extends Bar' is not missed.
+            # 先剥离行内块注释再做跳过判断，否则 `/* 注释 */ class Foo extends Bar` 会被整行漏掉。
             stripped_nc = re.sub(r'/\*.*?\*/', '', stripped).strip()
             if stripped_nc == '' or stripped_nc.startswith('//') or stripped_nc.startswith('/*') or stripped_nc.startswith('*'):
                 i += 1; continue
-            # Skip annotation-only lines (no class keyword on same line)
+            # 跳过纯注解行：同一行里没有 class 关键字
             if stripped_nc.startswith('@') and not re.search(r'\bclass\b', stripped_nc):
                 i += 1; continue
             clean_line = _strip_generics(stripped_nc)
@@ -280,7 +329,7 @@ def find_deep_inheritance(root: Path, max_depth: int = 2,
                 if class_match.group(2):
                     extends_graph[class_name] = class_match.group(2).split(".")[-1]
             else:
-                # Multi-line: 'class Name' here, 'extends Parent' on a subsequent line
+                # 1.1 跨行声明：本行只有 `class Name`，`extends Parent` 在后面的行
                 class_decl = re.search(r'\bclass\s+(\w+)', clean_line)
                 if class_decl:
                     class_name = class_decl.group(1)
@@ -299,24 +348,24 @@ def find_deep_inheritance(root: Path, max_depth: int = 2,
                             if ext_match and ext_match.group(2):
                                 extends_graph[class_name] = ext_match.group(2).split(".")[-1]
                                 break
-                            # extends keyword found but parent name may be on next line; keep scanning
-                        # Stop if we see opening brace, another type decl, or implements
+                            # 已见 extends 关键字，但父类名可能还在下一行，继续前瞻
+                        # 遇到左花括号、其他类型声明或 implements 就停止
                         if re.search(r'\{|\b(?:class|interface|enum|record)\b|\bimplements\b', nl_nc):
                             break
                         j += 1
             i += 1
 
-    # --- Python pass ---
+    # 2. Python 侧：登记类声明与首个父类
     for f in (file_list_py if file_list_py is not None else _rglob_filtered(root, "*.py")):
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
 
-        # Strip #-style comments to avoid false matches inside comments/docstrings.
-        # Best-effort: does not handle # inside multi-line strings perfectly.
-        # Heuristic: only treat '#' as a comment start when preceded by whitespace
-        # or at line start, to reduce false positives with string literals like x="#foo".
+        # 剥离 # 注释，避免注释与 docstring 里的文本被误判为代码。
+        # 尽力而为：多行字符串内部的 # 无法完全正确处理。
+        # 启发式：只有前导空白或行首的 # 才当作注释起始，
+        # 以减少 x="#foo" 这类字符串字面量造成的误判。
         cleaned_py = []
         for raw_line in content.split('\n'):
             stripped_ln = raw_line.strip()
@@ -331,38 +380,37 @@ def find_deep_inheritance(root: Path, max_depth: int = 2,
 
         for class_start in re.finditer(r'class\s+(\w+)\s*\(', content):
             class_name = class_start.group(1)
-            paren_pos = class_start.end() - 1  # position of '('
+            paren_pos = class_start.end() - 1  # 左括号位置
             close_pos = _find_matching_paren(content, paren_pos)
             if close_pos == -1:
                 continue
             parents_raw = content[class_start.end():close_pos]
             parents = [p.strip() for p in _split_comma_aware(parents_raw) if p.strip()]
             if parents:
-                first_parent = re.sub(r'\[.*\]', '', parents[0]).strip()  # primary base, strip generics
+                first_parent = re.sub(r'\[.*\]', '', parents[0]).strip()  # 首个父类即主基类，去掉下标参数
                 class_files[class_name] = str(f.relative_to(root))
                 extends_graph[class_name] = first_parent.split(".")[-1]
 
-    # Helper: calculate inheritance depth.  Returns -1 for cyclic chains
-    # so they are never flagged as "deep inheritance".
+    # 3. 计算继承深度：遇到环形继承返回 -1，使其永远不会被判成"继承过深"
     def calc_depth(cls_name: str, visiting: set = None) -> int:
         if visiting is None:
             visiting = set()
         if cls_name in visiting:
-            return -1  # cycle detected — do not report
+            return -1  # 检测到环，不上报
         visiting.add(cls_name)
         parent = extends_graph.get(cls_name)
         if parent is None:
             return 0
         child_depth = calc_depth(parent, visiting)
         if child_depth == -1:
-            return -1  # propagate cycle marker
+            return -1  # 向上传递环标记
         return 1 + child_depth
 
-    # Second pass: report classes with depth >= max_depth (skip cycles)
+    # 4. 第二遍：报告深度达到 max_depth 的类（跳过环形链）
     for class_name, file_path in class_files.items():
         depth = calc_depth(class_name)
         if depth >= max_depth and depth != -1:
-            # Build the chain for reporting
+            # 拼出继承链文本，便于人工核对
             chain = [class_name]
             current = class_name
             visited_chain = {class_name}
@@ -386,61 +434,69 @@ def find_deep_inheritance(root: Path, max_depth: int = 2,
 
 
 def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -> list[dict]:
-    """Find methods that only delegate to another method with minimal logic (pass-through wrappers)."""
+    """查找只做一次委托、几乎没有自身逻辑的方法（转发包装）。
+
+    Args:
+        root: 项目根目录，用于生成相对路径。
+        file_list: 已选定的 Java 文件；为 None 时自行扫描 root。
+
+    Returns:
+        pass_through 类型的问题列表。
+    """
     results = []
     for f in (file_list if file_list is not None else _rglob_filtered(root, "*.java")):
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
 
-        # Match a Java method, skipping optional annotations above it.
-        # Approach: scan line-by-line; when we see a method signature, check its body.
+        # 1. 匹配 Java 方法签名，允许方法上方有若干注解
+        # 1.1 逐行扫描：见到方法签名就转去检查它的方法体
         lines = content.split('\n')
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-            # Strip inline block comments first so '/* ... */ code' is not skipped
+            # 先剥离行内块注释，否则 `/* ... */ 代码` 会被当成注释行跳过
             line = re.sub(r'/\*.*?\*/', '', line).strip()
-            # Skip comment-only and annotation-only lines
+            # 跳过纯注释行
             if line.startswith('//') or line.startswith('/*') or line.startswith('*'):
                 i += 1
                 continue
-            # Skip annotation-only lines (no method-like keyword on same line).
-            # After making the modifier optional below, we must also let through
-            # lines that start with a return-type + method-name without a modifier.
+            # 跳过纯注解行：同一行里没有任何方法特征关键字。
+            # 下方把修饰符改成了可选，因此这里也必须放行"只有返回类型+方法名、
+            # 没有修饰符"的行。
             if line.startswith('@') and not re.search(r'\b(public|private|protected|default|static|void|int|boolean|long|double|float|byte|short|char|String)\b', line):
                 i += 1
                 continue
             m = re.search(
-                r'(?:(?:public|private|protected|default)\s+)?'  # access modifier or interface default (optional — package-private methods have none)
+                r'(?:(?:public|private|protected|default)\s+)?'  # 访问修饰符或 interface default（可选——包级私有方法没有修饰符）
                 r'(?:static\s+)?'
-                r'(?:<[^<>]*>\s+)?'            # optional generic type param (simplified; nested generics unsupported)
-                r'(.+)'                     # return type (greedily match incl. generics with spaces)
-                r'\s+(\w+)\s*'               # method name
-                r'\(([^)]*)\)',               # parameter list
+                r'(?:<[^<>]*>\s+)?'            # 可选的泛型类型参数（简化处理，不支持嵌套泛型）
+                r'(.+)'                     # 返回类型（贪婪匹配，可含带空格的泛型）
+                r'\s+(\w+)\s*'               # 方法名
+                r'\(([^)]*)\)',               # 形参列表
                 line
             )
             if not m:
                 i += 1
                 continue
             method_name = m.group(2)
-            # Collect the method body (naive brace counting)
+            # 2. 收集方法体（用花括号配对粗略计数）
             brace_count = 0
             open_pos = None
-            # Heuristic: only treat '//' as comment start when preceded by space
-            # to reduce false positives with URLs inside strings.
+            # 启发式：只有前导空格的 // 才当作注释起始，
+            # 以减少字符串里 URL 造成的误判。
             comment_pos = line.find(' //')
             clean = line[:comment_pos] if comment_pos != -1 else line
             if '{' in clean:
                 brace_count = clean.count('{') - clean.count('}')
                 open_pos = clean.index('{')
             else:
-                # Look ahead for Allman-style opening brace on next line(s)
+                # 2.1 另起一行的 Allman 风格左花括号：向后找若干行
                 j = i + 1
                 while j < len(lines):
                     ahead = lines[j].strip()
-                    # Strip inline block comments first
+                    # 先剥离行内块注释
                     ahead_nc = re.sub(r'/\*.*?\*/', '', ahead).strip()
                     if ahead_nc == '' or ahead_nc.startswith('//') or ahead_nc.startswith('/*') or ahead_nc.startswith('*') or ahead_nc.startswith('@'):
                         j += 1
@@ -455,12 +511,12 @@ def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -
                         i = j
                         break
                     else:
-                        break  # non-empty, non-comment line without '{' — not parseable
+                        break  # 非空、非注释行却没有 '{'，无法解析
                 if open_pos is None:
                     i += 1
                     continue
             if '}' in clean[open_pos:]:
-                # Inline single-line body: "public void foo() { return bar.baz(); }"
+                # 单行方法体：public void foo() { return bar.baz(); }
                 body_content = clean[open_pos+1:clean.rindex('}')].strip()
                 body_lines = [body_content] if body_content else []
             else:
@@ -473,6 +529,7 @@ def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -
             body = '\n'.join(body_lines).strip()
             stripped = [l.strip() for l in body.split('\n')
                         if l.strip() and not l.strip().startswith('//') and l.strip() not in ('}', '};')]
+            # 3. 方法体只剩一条 return 委托语句时判为转发包装
             if len(stripped) == 1 and re.match(r'^return\s+(?:await\s+)?(?:new\s+)?\w+(?:\.\w+)+\(', stripped[0]):
                 results.append({
                     "type": "pass_through",
@@ -487,35 +544,41 @@ def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -
 
 
 # ---------------------------------------------------------------------------
-# Python-specific detectors
+# Python 专属检测器
 # ---------------------------------------------------------------------------
 
 def find_python_abc_smell(root: Path, file_list: list[Path] | None = None) -> list[dict]:
-    """Find ABCs with at most one concrete subclass in the project.
+    """查找项目中至多只有一个具体子类的 ABC。
 
-    An ABC with a single implementation is the Python equivalent of a
-    single-implementation Java interface — the abstraction may be unnecessary.
+    只有一个实现的 ABC 就是 Java 单实现接口的 Python 版本，抽象很可能是多余的。
+
+    Args:
+        root: 项目根目录，用于生成相对路径。
+        file_list: 已选定的 Python 文件；为 None 时自行扫描 root。
+
+    Returns:
+        python_single_impl_abc 类型的问题列表。
     """
     results = []
-    abc_classes = {}          # abc_name -> file_path
-    abc_subclasses = defaultdict(set)  # abc_name -> set of subclass file paths
+    abc_classes = {}          # ABC 名 -> 文件路径
+    abc_subclasses = defaultdict(set)  # ABC 名 -> 子类文件路径集合
 
+    # 1. 扫描每个文件，收集 ABC 定义与其子类
     for f in (file_list if file_list is not None else _rglob_filtered(root, "*.py")):
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
 
         rel = str(f.relative_to(root))
 
-        # Strip comment-only lines so that '# class Foo(ABC):' is not matched
-        # as a real class definition.
+        # 1.1 抹掉纯注释行，避免 `# class Foo(ABC):` 被当成真实类定义
         content_no_comments = '\n'.join(
             '' if ln.strip().startswith('#') else ln
             for ln in content.split('\n')
         )
 
-        # Detect ABC definitions: class X(ABC) or class X(metaclass=ABCMeta)
+        # 1.2 识别 ABC 定义：class X(ABC) 或 class X(metaclass=ABCMeta)
         for abc_match in re.finditer(
             r'^class\s+(\w+)\s*\((?:.*?\bABC\b.*?|.*?metaclass\s*=\s*(?:abc\.)?ABCMeta.*?)\)',
             content_no_comments,
@@ -523,10 +586,10 @@ def find_python_abc_smell(root: Path, file_list: list[Path] | None = None) -> li
         ):
             abc_classes[abc_match.group(1)] = rel
 
-        # Detect subclasses: use paren-depth matching to handle nested parens in
-        # type-hint arguments like class Foo(Generic[Dict[str, int]]).
-        # Strip #-comments from a copy to avoid false class matches in comments.
-        # Heuristic: only treat '#' as comment start when preceded by whitespace.
+        # 1.3 识别子类：用括号深度匹配处理类型标注里的嵌套括号，
+        #     如 class Foo(Generic[Dict[str, int]])。
+        #     在副本上剥离 # 注释，避免注释里的文本被当成类声明。
+        #     启发式：只有前导空白的 # 才当作注释起始。
         content_cleaned = '\n'.join(
             (ln[:ln.find(' #')] if ln.find(' #') != -1 and not ln.strip().startswith('#') else
              ('' if ln.strip().startswith('#') else ln))
@@ -534,7 +597,7 @@ def find_python_abc_smell(root: Path, file_list: list[Path] | None = None) -> li
         )
         for class_start in re.finditer(r'class\s+(\w+)\s*\(', content_cleaned):
             class_name = class_start.group(1)
-            paren_pos = class_start.end() - 1  # position of '('
+            paren_pos = class_start.end() - 1  # 左括号位置
             close_pos = _find_matching_paren(content_cleaned, paren_pos)
             if close_pos == -1:
                 continue
@@ -544,19 +607,20 @@ def find_python_abc_smell(root: Path, file_list: list[Path] | None = None) -> li
                 p = p.strip()
                 if not p:
                     continue
-                # Strip inline comment (e.g. 'BaseClass  # explanation' -> 'BaseClass')
+                # 剥离行内注释（如 `BaseClass  # 说明` -> `BaseClass`）
                 comment_idx = p.find('#')
                 if comment_idx != -1:
                     p = p[:comment_idx].strip()
                 if p:
                     parents.append(p)
             for parent in parents:
-                if parent != class_name:  # skip self-referential
-                    # Strip generic type parameters (e.g., Generic[T] -> Generic)
+                if parent != class_name:  # 跳过自引用
+                    # 去掉泛型类型实参（如 Generic[T] -> Generic）
                     parent_clean = re.sub(r'\[.*\]', '', parent).strip()
                     simple_parent = parent_clean.split('.')[-1]
                     abc_subclasses[simple_parent].add(rel)
 
+    # 2. 子类不超过一个时判为坏味道
     for abc_name, file_path in abc_classes.items():
         subs = abc_subclasses.get(abc_name, set())
         if len(subs) <= 1:
@@ -572,17 +636,23 @@ def find_python_abc_smell(root: Path, file_list: list[Path] | None = None) -> li
 
 
 def _find_matching_paren(line: str, start: int) -> int:
-    """Return index of matching ')' for '(' at `start`, or -1 if not found.
+    """返回 `start` 处左括号 ' 所匹配的右括号 ')' 下标，找不到时返回 -1。
 
-    String-literal aware: skips over characters inside single/double/triple-quoted
-    strings so that parentheses inside default values like x="default(val)" do not
-    cause premature return.
+    对字符串字面量敏感：会跳过引号内的字符，因此默认值里的括号
+    （如 x="default(val)"）不会导致提前返回。
+
+    Args:
+        line: 待扫描的文本，可以是多行拼接后的签名。
+        start: 左括号 '(' 的下标。
+
+    Returns:
+        匹配的右括号下标；没有匹配时返回 -1。
     """
     depth = 0
     idx = start
     while idx < len(line):
         ch = line[idx]
-        # --- string-literal skipping ---
+        # 1. 跳过字符串字面量
         if ch in ("'", '"'):
             # Triple quote?
             if idx + 2 < len(line) and line[idx:idx+3] in ('"""', "'''"):
@@ -593,19 +663,19 @@ def _find_matching_paren(line: str, start: int) -> int:
                 idx += 3
                 continue
             else:
-                # Single-char quote: skip to matching close, respecting backslash escapes
+                # 单字符引号：跳到配对的结束引号，反斜杠转义要一并跳过
                 quote = ch
                 idx += 1
                 while idx < len(line):
                     if line[idx] == '\\' and idx + 1 < len(line):
-                        idx += 2  # skip escaped character, whatever it is
+                        idx += 2  # 跳过转义字符，具体是什么不重要
                     elif line[idx] == quote:
                         break
                     else:
                         idx += 1
                 idx += 1
                 continue
-        # --- end string-literal skipping ---
+        # 2. 字符串之外按括号深度配对
         if ch == '(':
             depth += 1
         elif ch == ')':
@@ -617,37 +687,42 @@ def _find_matching_paren(line: str, start: int) -> int:
 
 
 def find_python_pass_through(root: Path, file_list: list[Path] | None = None) -> list[dict]:
-    """Find Python functions/methods that only delegate to another callable."""
+    """查找只做一次委托、没有自身逻辑的 Python 函数/方法。
+
+    Args:
+        root: 项目根目录，用于生成相对路径。
+        file_list: 已选定的 Python 文件；为 None 时自行扫描 root。
+
+    Returns:
+        python_pass_through 类型的问题列表。
+    """
     results = []
     for f in (file_list if file_list is not None else _rglob_filtered(root, "*.py")):
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
 
         rel = str(f.relative_to(root))
         lines = content.split('\n')
 
-        # Detect: def name(args):\n    return other.method(args)
+        # 1. 定位候选函数：def name(args): 后紧跟一行 return other.method(args)
         for i, line in enumerate(lines):
-            # Use paren-depth matching to handle nested calls in default values
+            # 1.1 用括号深度匹配处理默认值里的嵌套调用
             m = re.search(r'^\s*(?:async\s+)?def\s+(\w+)\s*(?:\[[^\]]*\])?\s*\(', line)
             if not m:
                 continue
-            # Find matching closing paren for the parameter list.
-            # Start on the current line; if the signature spans multiple lines,
-            # accumulate lines until the closing ')' is found.
-            paren_start = m.end() - 1  # position of '('
+            # 1.2 找出形参列表的右括号：签名跨行时就逐行累加直到找到 ')'。
+            paren_start = m.end() - 1  # 左括号位置
             close_idx = _find_matching_paren(line, paren_start)
-            sig_end_i = i  # physical line index where signature closes
+            sig_end_i = i  # 签名闭合所在的物理行下标
             if close_idx == -1:
-                # Multi-line signature: accumulate lines until closing paren
+                # 1.2.1 跨行签名：逐行累加直到出现闭合的右括号
                 sig_lines = [line]
                 for k in range(i + 1, len(lines)):
-                    # Strip #-comments before appending so that ')' inside
-                    # comments (e.g. 'x: int  # default(val)') does not
-                    # cause _find_matching_paren to return prematurely.
-                    # Heuristic: only treat '#' as comment start when preceded by whitespace.
+                    # 拼接前先剥离 # 注释，避免注释里的 ')'（如 `x: int  # 默认(val)`）
+                    # 让 _find_matching_paren 提前返回。
+                    # 启发式：只有前导空白的 # 才当作注释起始。
                     ln = lines[k]
                     comment_pos = ln.find(' #')
                     if comment_pos != -1:
@@ -659,19 +734,19 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                         sig_end_i = k
                         break
                 if close_idx == -1:
-                    continue  # malformed — skip
+                    continue  # 签名残缺，跳过
                 sig = '\n'.join(sig_lines)
             else:
                 sig = line
-            # Check for return type annotation and colon after the closing paren
+            # 2. 校验右括号之后只剩返回类型标注和冒号
             rest = sig[close_idx+1:].strip()
             if rest and not rest.startswith(':') and not rest.startswith('->'):
-                # rest is non-empty and not a ':' or '->' suffix — malformed signature
+                # rest 非空且既不是 ':' 也不是 '->' 收尾，签名残缺
                 continue
             func_name = m.group(1)
             def_indent = len(line) - len(line.lstrip())
-            # Check for single-line body on same line as closing paren:
-            # def foo(x): <body>  or  def foo(x) -> T: <body>
+            # 3. 闭合括号与冒号同行时先检查单行函数体
+            # def foo(x): <body> 或 def foo(x) -> T: <body>
             after_colon = ""
             if rest.startswith(':'):
                 after_colon = rest[1:].strip()
@@ -680,7 +755,7 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                 if m_rtype:
                     after_colon = m_rtype.group(2).strip()
             if after_colon:
-                # Strip inline comment so 'return bar.baz()  # explain' is recognised
+                # 剥离行内注释，使 `return bar.baz()  # 说明` 能被识别为代码
                 comment_idx = after_colon.find('#')
                 if comment_idx != -1:
                     maybe_code = after_colon[:comment_idx].strip()
@@ -696,13 +771,12 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                             "body": maybe_code,
                             "message": f"Function '{func_name}' in {rel} is a one-line pass-through. Consider inlining at the call site."
                         })
-                    continue  # single-line function, body already checked
-                # after_colon was purely a comment — fall through to body collection
-            # Collect the body until dedent (track triple-quote state to avoid
-            # false dedent on unindented """ inside a multi-line string).
-            # Track WHICH quote type opened the region — a """ docstring that
-            # contains ''' in its body text must not be closed by the embedded
-            # single-quote variant, and vice versa.
+                    continue  # 单行函数，方法体已检查完
+                # after_colon 全是注释，继续往下收集方法体
+            # 4. 逐行收集方法体直到 dedent；跟踪三引号状态，避免多行字符串里
+            #    未缩进的 """ 被误判成 dedent。
+            #    必须跟踪是哪一种引号开启的区域：正文里含 ''' 的 """ docstring
+            #    不能被内嵌的单引号变体提前闭合，反之亦然。
             body_lines = []
             triple_type = None  # None | '"""' | "'''"
             j = sig_end_i + 1
@@ -711,13 +785,12 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                 stripped_j = line_j.strip()
                 if stripped_j == '':
                     j += 1
-                    continue  # skip blank lines within function body
-                # Count exact triple-quote boundaries (not part of 4+ consecutive quotes)
+                    continue  # 跳过函数体内的空行
+                # 精确统计三引号边界（不把连续 4 个以上的引号算进去）
                 dq_count = len(re.findall(r'(?<!")"""(?!")', stripped_j))
                 sq_count = len(re.findall(r"(?<!')'''(?!')", stripped_j))
                 if triple_type is None:
-                    # Outside a triple-quoted string — an odd count of either
-                    # marker opens a region of that type.
+                    # 4.1 在三引号字符串之外：任意一种标记出现奇数次即开启对应区域
                     if dq_count % 2 == 1:
                         triple_type = '"""'
                         j += 1
@@ -726,16 +799,15 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                         triple_type = "'''"
                         j += 1
                         continue
-                    # Single-line triple-quoted string (even count — both open
-                    # and close markers on the same line, e.g. """docstring.""").
-                    # Skip it so docstrings don't pollute body_lines and cause
-                    # false negatives for otherwise single-statement pass-throughs.
+                    # 4.2 单行三引号字符串（偶数次：开闭标记在同一行，如 """docstring."""），
+                    #     跳过它以免 docstring 混进 body_lines，
+                    #     把本可识别的单语句转发方法变成漏报。
                     if stripped_j.startswith(('"""', "'''", 'r"""', "r'''", 'f"""', "f'''", 'b"""', "b'''", 'u"""', "u'''", 'rb"""', "rb'''")):
                         j += 1
                         continue
                 else:
-                    # Inside a triple-quoted string — only the matching quote
-                    # type can close it; the other type is just body content.
+                    # 4.3 在三引号字符串之内：只有同类引号才能闭合它，
+                    #     另一种只是正文内容
                     if triple_type == '"""':
                         if dq_count % 2 == 1:
                             triple_type = None
@@ -746,13 +818,13 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                     continue
                 current_indent = len(line_j) - len(line_j.lstrip())
                 if current_indent <= def_indent and stripped_j:
-                    break  # dedented — next top-level or peer statement
+                    break  # 已 dedent，后面是顶层或同级的语句
                 if stripped_j.startswith('@') and current_indent <= def_indent:
-                    break  # decorator on next peer method (not inside nested scope)
+                    break  # 同级方法上的装饰器，不属于当前嵌套作用域
                 body_lines.append(line_j.strip())
                 j += 1
-            # Filter out comments and blanks; strip inline comments first
-            # so that 'return foo.bar()  # delegate' is recognised as code.
+            # 5. 过滤注释和空行；先剥行内注释，
+            #    使 `return foo.bar()  # 委托` 能被识别为代码
             stripped_body = []
             for l in body_lines:
                 if not l:
@@ -763,6 +835,7 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
                 if l and not l.startswith('#'):
                     stripped_body.append(l)
             code_lines = stripped_body
+            # 6. 方法体只剩一条 return 委托语句时判为转发包装
             if len(code_lines) == 1 and re.match(r'^return\s+(?:await\s+)?\w+(?:\.\w+)+\(', code_lines[0]):
                 results.append({
                     "type": "python_pass_through",
@@ -777,7 +850,7 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
 
 
 # ---------------------------------------------------------------------------
-# Reporters
+# 报告输出
 # ---------------------------------------------------------------------------
 
 def report_text(smells: list[dict]) -> str:
@@ -821,7 +894,7 @@ def report_json(smells: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main
+# 主流程
 # ---------------------------------------------------------------------------
 
 def _related(smell: dict, selected: set[str]) -> bool:
