@@ -17,6 +17,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const getRemoteVersion = require(path.join(__dirname, 'remote-version.js'));
+const { compareVersions } = require(path.join(__dirname, 'version.js'));
 
 const PKG_NAME = 'readability-first-coding';
 
@@ -32,26 +33,6 @@ function getLocalVersion() {
     }
   }
   return null;
-}
-
-function parseVersionParts(v) {
-  // Strip pre-release suffixes like "1.2.3-beta" → [1, 2, 3]
-  return v.split('.').map(s => {
-    const n = parseInt(s, 10);
-    return isNaN(n) ? 0 : n;
-  });
-}
-
-function compareVersions(a, b) {
-  const pa = parseVersionParts(a);
-  const pb = parseVersionParts(b);
-  const len = Math.max(pa.length, pb.length);
-  for (let i = 0; i < len; i++) {
-    const av = pa[i] || 0;
-    const bv = pb[i] || 0;
-    if (av !== bv) return av - bv;
-  }
-  return 0;
 }
 
 async function main() {

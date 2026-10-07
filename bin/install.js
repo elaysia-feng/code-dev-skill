@@ -17,6 +17,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { execSync } = require('node:child_process');
 const getRemoteVersion = require(path.join(__dirname, 'remote-version.js'));
+const { compareVersions } = require(path.join(__dirname, 'version.js'));
 
 const PACKAGE_NAME = 'readability-first-coding';
 const SKILL_NAME = 'code-dev';
@@ -26,7 +27,7 @@ const skillSrc = path.join(__dirname, '..', 'skills', SKILL_NAME);
 
 function resolveTarget() {
   const args = process.argv.slice(2);
-  const allowed = new Set(['--global', '-g', '--check', '--update', '-U', '--target-dir', '--json']);
+  const allowed = new Set(['--global', '-g', '--check', '--update', '-U', '--target-dir', '--force']);
   for (const arg of args) {
     if (arg.startsWith('-') && !allowed.has(arg)) throw new Error('Unknown option: ' + arg);
   }
@@ -93,7 +94,7 @@ function doUpdate() {
     if (freshPackage.name !== PACKAGE_NAME || !freshPackage.version || !fs.existsSync(path.join(freshSkill, 'SKILL.md'))) {
       throw new Error('Updated package is incomplete');
     }
-    copyDir(freshSkill, target);
+    replaceSkillDir(freshSkill, target, process.argv.slice(2).includes('--force'));
     if (!fs.readFileSync(path.join(target, 'SKILL.md')).equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
       throw new Error('Installed skill verification failed');
     }
@@ -101,6 +102,99 @@ function doUpdate() {
   } finally {
     // temp 由本进程创建，清理范围不依赖用户输入。
     fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
+/**
+ * List every file under dir as a posix relative path, skipping symlinks.
+ * Used only to report what an update is about to remove.
+ */
+function listFiles(dir, prefix = '') {
+  let out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix ? prefix + '/' + entry.name : entry.name;
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      out = out.concat(listFiles(path.join(dir, entry.name), rel));
+    } else if (entry.isFile()) {
+      out.push(rel);
+    }
+  }
+  return out;
+}
+
+/**
+ * Report the skill name declared in a SKILL.md frontmatter block.
+ * Returns null when the file is missing, unreadable or has no usable name.
+ */
+function readSkillName(dir) {
+  try {
+    const marker = path.join(dir, 'SKILL.md');
+    if (!fs.existsSync(marker)) return null;
+    const head = fs.readFileSync(marker, 'utf8').slice(0, 4096);
+    const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(head);
+    if (!front) return null;
+    const name = /^name:\s*(.+?)\s*$/m.exec(front[1]);
+    return name ? name[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Replace the installed skill directory wholesale.
+ *
+ * Merging instead of replacing would leave files that upstream deleted still on
+ * disk forever — a reference doc dropped in a later version would linger in every
+ * user's installation.
+ *
+ * Two guards keep this from destroying the wrong directory:
+ *  - The target must be an existing code-dev installation, identified by the
+ *    `name:` in its own SKILL.md. "Some directory that happens to contain a
+ *    SKILL.md" is not enough — --target-dir is a documented option and a typo
+ *    can land on somebody else's skill. Set --force to override deliberately.
+ *  - The new content is staged next to the target and only swapped in after a
+ *    successful copy, so a failure mid-copy leaves the working installation
+ *    untouched instead of a half-written directory.
+ */
+function replaceSkillDir(freshSkill, target, force) {
+  assertNoSymbolicPath(target);
+  const declared = readSkillName(target);
+
+  if (declared === null) {
+    // Not an installation at all: a fresh install must never delete anything.
+    copyDir(freshSkill, target);
+    return;
+  }
+  if (declared !== SKILL_NAME && !force) {
+    throw new Error(
+      'Refusing to replace ' + target + ': it holds a skill named "' + declared +
+      '", not "' + SKILL_NAME + '". Point --target-dir at the code-dev ' +
+      'installation, or pass --force if you really mean to overwrite it.');
+  }
+
+  const shipped = new Set(listFiles(freshSkill));
+  const stale = listFiles(target).filter(rel => !shipped.has(rel));
+
+  // 1. 把新内容暂存到同级目录，复制失败时旧安装仍然完好
+  const staging = target + '.incoming';
+  fs.rmSync(staging, { recursive: true, force: true });
+  try {
+    copyDir(freshSkill, staging);
+    const stagedMarker = fs.readFileSync(path.join(staging, 'SKILL.md'));
+    if (!stagedMarker.equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
+      throw new Error('Staged skill verification failed before swap');
+    }
+    // 2. 校验通过后才切换，同盘 rename 是原子操作
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.renameSync(staging, target);
+  } catch (error) {
+    fs.rmSync(staging, { recursive: true, force: true });
+    throw error;
+  }
+
+  if (stale.length) {
+    console.log('Removed entries that upstream no longer ships: ' + stale.join(', '));
   }
 }
 
