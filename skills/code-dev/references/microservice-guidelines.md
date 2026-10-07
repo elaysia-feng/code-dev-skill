@@ -1,10 +1,10 @@
 # Java Microservice Guidelines
 
-Use this file together with `java-guidelines.md`. Existing repository conventions take precedence, while Java business contracts remain interface-first.
+Use this file together with `java-guidelines.md`. Both are mandatory. Existing repository conventions do not override them; a project governed by a company standard follows that standard instead, per the precedence rules in [`../SKILL.md`](../SKILL.md).
 
 ## Service ownership
 
-Each service should own its domain behavior and data contracts unless the system already defines a shared contract module.
+Each service must own its domain behavior and data contracts unless the system defines a shared contract module.
 
 Example:
 
@@ -13,10 +13,10 @@ project-parent/
 ├── order-service/
 ├── product-service/
 ├── user-service/
-└── common-api/              # optional, only when genuinely shared
+└── common-api/             # optional, only when genuinely shared
 ```
 
-Do not assume the shared module must be named `base-service`. Existing projects may use `common`, `common-api`, `platform-core`, `shared-kernel`, or no shared module at all.
+The shared module is named `common-api/`. Projects using `base-service`, `common`, `platform-core`, or `shared-kernel` are migrated to `common-api/` rather than kept under their existing name.
 
 ## Business module shape
 
@@ -24,7 +24,7 @@ First identify how the Maven project organizes business code.
 
 ### Normal service module
 
-If each microservice is a regular Spring module, business contracts live under `service/` or the project's existing `services/`, with implementations under `impl/`:
+If each microservice is a regular Spring module, business contracts live under `service/`, with implementations under `impl/`:
 
 ```text
 com.example.order/
@@ -79,7 +79,7 @@ Do not move order/product/user business rules into a shared module merely to rem
 
 ## Shared modules
 
-If a shared module already exists, preserve its scope and naming.
+If a shared module already exists, keep its scope and migrate its name to `common-api/`. Its existing contents are preserved; only the module name and layout change.
 
 Good shared-module contents may include stable technical contracts such as:
 
@@ -101,7 +101,7 @@ Avoid generic inheritance frameworks such as:
 - `BaseEntity`
 - `AbstractConverter`
 
-unless they are already part of the project's architecture or the user explicitly asks for them.
+An existing one of these is flattened into composition unless the user explicitly asks for it to stay.
 
 ## Service communication
 

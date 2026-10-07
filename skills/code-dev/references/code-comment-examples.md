@@ -1,10 +1,10 @@
-# 注释取舍示例
+# Code Comment Examples
 
-仅在需要判断注释内容时对照，不要求复制完整模板。
+Consult these only when deciding what a comment should contain; copying the full template is not required.
 
-## 记录调用契约
+## Document the call contract
 
-下面的文档补充单位和特殊值，而不重复参数类型：
+The documentation below adds units and special values instead of repeating the parameter types:
 
 ```java
 /**
@@ -16,7 +16,7 @@
 public int cacheTtl(String tenantId) { ... }
 ```
 
-Python 同样只描述调用者需要知道的语义：
+Python likewise describes only the semantics the caller needs to know:
 
 ```python
 def cache_ttl(tenant_id: str) -> int:
@@ -31,18 +31,18 @@ def cache_ttl(tenant_id: str) -> int:
     ...
 ```
 
-这些是契约示例，只有实际实现满足约定时才能采用。
+These are contract examples. The implementation must genuinely satisfy the contract it declares; if the code behavior does not match what the example describes, fix the comment instead of keeping a promise that does not hold.
 
-## 解释容易误改的约束
+## Explain constraints that are easy to break
 
-比起“更新状态”，下面的注释说明为什么必须带原状态条件：
+Instead of "update the status", the comment below explains why the original status condition is required:
 
 ```java
 // 仅允许从待支付状态取消，避免覆盖并发支付成功的结果。
 int updated = orderMapper.cancelIfPending(orderId);
 ```
 
-多阶段业务流程按真实层级编号：例如 1.、2.、3. 表示同级阶段；1.1、1.2 表示第一阶段的子步骤；需要更深展开时可用 1.2.1。下一同级阶段继续编号为 2.，不重复使用 1.。只标记有意义的阶段，不给每条查询或赋值编号。
+A multi-stage business flow is numbered by its real hierarchy: for example `1.`, `2.`, `3.` mark sibling stages; `1.1`, `1.2` mark sub-steps of the first stage; `1.2.1` is available when a deeper level is needed. The next sibling stage continues at `2.` and never reuses `1.`. Number only meaningful stages, never every query or assignment.
 
 ```java
 public boolean cancelIfPending(long orderId) {
@@ -57,7 +57,7 @@ public boolean cancelIfPending(long orderId) {
 }
 ```
 
-简单属性可以不写 docstring：
+A simple property can go without a docstring:
 
 ```python
 @property
@@ -65,9 +65,9 @@ def is_active(self) -> bool:
     return self._status == Status.ACTIVE
 ```
 
-## TypeScript：说明公开 API 契约
+## TypeScript: document the public API contract
 
-类型签名表达静态类型，TSDoc 补充单位与特殊值：
+The type signature expresses the static type; TSDoc adds the units and special values:
 
 ```ts
 /**
@@ -82,16 +82,16 @@ export function cacheTtl(tenantId: string): number {
 }
 ```
 
-行注释解释容易误改的业务约束，而不是复述赋值：
+A line comment explains a business constraint that is easy to break, instead of restating the assignment:
 
 ```ts
 // 仅当状态版本未变化时更新，避免覆盖并发写入的结果。
 await repository.updateIfVersionMatches(id, expectedVersion, nextState);
 ```
 
-## 不要编造保证
+## Never invent guarantees
 
-- 调用了名字含 Async 的方法，不足以证明它一定不阻塞。
-- 类没有可变字段，不足以证明依赖对象也是线程安全的。
-- 只描述调用方需要处理且实现确实可能抛出的异常。
-- TODO 的负责人从用户或项目约定获取；未知时报告待确认，不能随便填一个人名。
+- Calling a method whose name contains `Async` is not proof that it never blocks.
+- A class having no mutable fields is not proof that the objects it depends on are thread-safe either.
+- Document only the exceptions the caller must handle and the implementation can actually throw.
+- A TODO owner comes from the user or the project convention; when it is unknown, report it as to-be-confirmed instead of filling in an arbitrary name.

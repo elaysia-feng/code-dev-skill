@@ -1,12 +1,12 @@
 # Project Structure
 
-Directory layouts in this file are **starting points, not mandatory scaffolds**. Preserve an existing project's structure when it is coherent. Create only directories needed by the current project.
+The directory layouts in this file are **mandatory**, not illustrative. Use them as-is; a project whose current layout differs gets migrated, not exempted. Entries marked `optional` are **prohibited unless the application actually needs them** — that is a restriction, not a style choice. Create only the directories the current project needs, but create those in the shape shown here.
 
 ## Java Backend
 
 ### Ordinary monolithic Spring project
 
-For a normal single-module Spring Boot application, keep business services under `service/` or the repository's existing `services/` package, and use interface + `impl/`:
+For a normal single-module Spring Boot application, keep business services under `service/`, and use interface + `impl/`:
 
 ```text
 com.example.project/
@@ -37,7 +37,7 @@ Responsibilities:
 - `config/` — framework/infrastructure configuration.
 - `exception/` — project/domain exceptions when they have clear ownership.
 
-Use the existing singular/plural service package name; do not rename a coherent project only to match the example.
+Use the singular `service/` package name shown above. A project currently using `services/` is migrated to `service/`.
 
 ### Multi-Maven / multi-module project with dedicated `*.biz`
 
@@ -90,10 +90,10 @@ project-parent/
 ├── order-service/
 ├── product-service/
 ├── user-service/
-└── shared-module/          # optional; only if the project genuinely needs one
+└── common-api/             # optional; only if the project genuinely needs one
 ```
 
-The shared module may already be named `base-service`, `common`, `common-api`, `platform-core`, etc. Follow the repository's existing name instead of inventing or renaming it.
+The shared module is named `common-api/`. A project currently using `base-service`, `common`, `platform-core`, or `shared-kernel` is migrated to `common-api/`; do not invent other names.
 
 If an individual microservice is a normal Spring module, use its `service/` + `impl/` business structure. If the Maven project instead separates a dedicated `*.biz` module, use the `biz` layout described above.
 
@@ -121,7 +121,7 @@ src/
     └── memory/                    # optional
 ```
 
-Do **not** create `utils/`, `common/`, `base/`, `repositories/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need or already uses that convention.
+Do **not** create `utils/`, `common/`, `base/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need. A package that already exists is migrated to the layout above rather than kept as-is.
 
 Typical repository-root files:
 
@@ -192,7 +192,7 @@ graphs/
     │   ├── retrieve.py
     │   ├── grade_documents.py
     │   └── generate_answer.py
-    ├── tools.py                 # or tools/ when there are several substantial tools
+    ├── tools.py                 # switch to tools/ once it holds several substantial tools
     └── prompts.py               # optional; only when prompts are large enough to deserve a file
 ```
 
@@ -226,7 +226,7 @@ Pydantic request/response/application models. Keep validation with the model or 
 
 Non-agent application/business logic such as database operations, external service calls, document ingestion, or orchestration outside the graph.
 
-Do not introduce a new `repositories/` layer by default. If the existing project already has repositories, use them consistently rather than bypassing them.
+Do not introduce a new `repositories/` layer — it is not part of the mandatory layout. If the project already has repositories, services **must** use that boundary rather than bypassing it, because two competing data-access paths are worse than either one alone.
 
 ### `models/`
 

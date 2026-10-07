@@ -1,43 +1,84 @@
 ---
 name: code-dev
 description: >-
-  用于 Java/Spring、Python/FastAPI/LangGraph 和 TypeScript/Node.js 项目的实现、审查与重构。
-  沿用项目约定，保持业务流程清楚，并按需应用代码注释和 TypeScript npm 包规范。
+  Mandatory development standard for Java/Spring, Python/FastAPI/LangGraph and
+  TypeScript/Node.js projects, covering project structure, the shape of Java business
+  interfaces, Simplified Chinese code comments and TypeScript npm package publishing.
+  For implementation, review and refactoring.
 license: MIT
 ---
 
 # Code Dev
 
-正确性是前提。之后按 **用户明确要求 → 当前项目约定 → 最简单清楚的实现** 决策。
+**This standard is mandatory, not a list of suggestions.** It applies to every personal project, and the bar is never lowered to match the existing code style.
 
-- 先读相关模块、调用关系和现有模式，再决定代码与目录结构。
-- 不只为减少重复行数增加公共方法、父类、共享模块或额外层次。
-- 仅在用户要求、项目既有架构、稳定共享规则、明确扩展点或框架边界需要时抽取结构。
-- 用户明确要求重构或抽取时，按其范围完成；不要以“可读性优先”为由拒绝，也不要顺带扩大改动。
-- 用户只要求审查时，只报告发现的问题，不自动修改代码。
-- 审查薄委托、单实现接口和继承时，先确认其是否承载事务、安全、并发、资源管理或公开契约。
+## Priority
 
-## Java 业务接口
+1. Correctness.
+2. **Company standards**: if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
+3. Explicit user requirements — they define the scope of the task, but do not exempt you from the mandatory rules below.
+4. The mandatory rules of this standard.
+5. The simplest, clearest implementation.
 
-Java 业务行为组件遵循 [`references/java-guidelines.md`](references/java-guidelines.md) 的接口优先约定：先判断是否有专用 `*.biz` 模块，再按对应项目形态放置接口与实现。DTO、实体、枚举、异常、配置等定义类型不因此新增接口。
+Item 2 is the **only** source of exemption. "The existing code is written this way" is not a reason in itself.
 
-## 按需加载
+## Mandatory rules
 
-只读当前任务相关的参考文档：
+These must be enforced for implementation, review and refactoring:
 
-| 场景 | 参考文档 |
+- **Project structure must follow [`references/project-structure.md`](references/project-structure.md)**, and must not be compromised to match the project's current state. When the structure does not comply, change the structure.
+- **Java business components must always be `interface + impl/`**; a single implementation is not a reason to skip the interface.
+- **Comments must always be in Simplified Chinese**; projects that use English comments must be rewritten the same way. Multi-stage methods must mark their steps with hierarchical numbering such as `1.` and `1.1`.
+- **Do not add** shared methods, base classes, shared modules or extra layers merely to reduce the number of duplicated lines.
+- Extract a structure only when one of the following holds: the user explicitly asked for it, a stable shared rule exists, there is a clear extension point, or there is a framework boundary. The project's pre-existing architecture does not qualify.
+- Read the relevant modules, call relationships and existing patterns before you start — reading them is for judging the blast radius, not for carrying on with the existing style.
+- When the user explicitly requests a refactor or an extraction, complete it within their scope: do not refuse it and do not widen it. If that request conflicts with this standard, state the conflict first and then carry it out; never violate this standard silently.
+- When the user only asks for a review, report the problems only and do not change code automatically.
+
+A directory marked `optional` is **prohibited unless the application actually needs it** — the marker is a restriction, not an optional style. Create it when the need is real; skip it otherwise, never because a template happened to include it.
+
+## Java business interfaces
+
+Java components that carry business behaviour follow the interface-first convention in [`references/java-guidelines.md`](references/java-guidelines.md): first determine whether a dedicated `*.biz` module exists, then place the interface and its implementation according to the corresponding project shape. Definition types such as DTOs, entities, enums, exceptions and configuration do not gain an interface as a result.
+
+A single-implementation interface must not be skipped just because "there is only one implementation"; a thin implementation is a legitimate boundary whenever it carries transactions, security, concurrency, resource management or a public contract.
+
+## Load on demand
+
+**Which section to load is decided by the task, but what you read is as mandatory as this file.** The reference documents carry no advisory weighting; read only what the current task calls for:
+
+| Scenario | Reference document |
 |---|---|
-| Java/Spring 后端 | [`references/java-guidelines.md`](references/java-guidelines.md) |
-| Java 微服务边界 | [`references/microservice-guidelines.md`](references/microservice-guidelines.md) 与 Java 指南 |
-| Python、FastAPI 或 LangGraph | [`references/python-guidelines.md`](references/python-guidelines.md) |
-| 新建项目或调整目录/模块 | [`references/project-structure.md`](references/project-structure.md) |
-| 新增或修改 Java、Python、TypeScript 注释 | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md) |
-| 创建或维护 TypeScript npm 包、导出入口或发布内容 | [`references/typescript-package-guidelines.md`](references/typescript-package-guidelines.md) |
-| 抽取边界或组织方式不明确 | 只读 [`references/examples.md`](references/examples.md) 中相关示例 |
+| Java/Spring backend | [`references/java-guidelines.md`](references/java-guidelines.md) |
+| Java microservice boundaries | [`references/microservice-guidelines.md`](references/microservice-guidelines.md) and the Java guidelines |
+| Python, FastAPI or LangGraph | [`references/python-guidelines.md`](references/python-guidelines.md) |
+| A new project, or adjusting directories/modules | [`references/project-structure.md`](references/project-structure.md) |
+| Adding or changing Java, Python or TypeScript comments | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md) |
+| Deciding what a specific comment should actually say | [`references/code-comment-examples.md`](references/code-comment-examples.md) |
+| Creating or maintaining a TypeScript npm package, its export entry point or its publish contents | [`references/typescript-package-guidelines.md`](references/typescript-package-guidelines.md) |
+| Extracting a boundary, or when the organisation is unclear | Read only the relevant examples in [`references/examples.md`](references/examples.md) |
+| Applying editor settings that stop tooling from rewriting the code this standard produces (auto-organize imports, cleanup-on-save, auto-refactoring) | [`assets/ide-settings.json`](assets/ide-settings.json) |
 
-## 可选检查
+## Checks
 
-需要辅助审查抽象时，可运行 `scripts/check-abstraction-smell.py`。它只提供启发式线索；须结合项目约定人工判断，不能据此自动改写架构。
-新增或修改 Java/Python 文件后，如有帮助，可运行 `scripts/check_comments.py`；该检查器不覆盖 TypeScript。WARNING 需人工判断；多阶段方法缺少编号时按规范补齐，不为无意义提示堆注释。
+Because the standard is mandatory, both commands below are used with blocking semantics. Checker output is only a lead and cannot replace human judgement.
 
-完成前确认需求已落实、相关行为已核对，并说明尚未验证的部分。
+When reviewing abstractions:
+
+```sh
+python <skill-dir>/scripts/check-abstraction-smell.py <project-root> --lang auto --fail-on warning
+```
+
+Java business components are automatically exempt from the single-implementation interface warning thanks to the `impl/` convention.
+
+After changing Java/Python files:
+
+```sh
+python <skill-dir>/scripts/check_comments.py <changed-files>
+```
+
+Exit codes: `0` means no ERROR (a WARNING may still be present); `1` means an ERROR exists; `2` means no checkable file was matched (**which does not mean there is no problem**). This checker does not cover TypeScript, and every WARNING requires human judgement.
+
+Optional git hook: merge `scripts/pre-commit-check.sh` into the existing hook, do not overwrite it. It does not block by default; it only blocks on WARNING-level issues when `READABILITY_FAIL_ON=warning` is set.
+
+Before finishing, confirm that the requirements have been delivered, that the mandatory rules have been checked one by one, and state what has not yet been verified.

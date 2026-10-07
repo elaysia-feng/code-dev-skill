@@ -1,8 +1,8 @@
 # Python Guidelines
 
-Target context: Python backend, especially **FastAPI + LangGraph**. Existing project conventions take precedence over these defaults.
+Target context: Python backend, especially **FastAPI + LangGraph**. These are **mandatory** rules and apply regardless of what the target project currently looks like — a project that does not follow them is changed, not exempted. A project governed by a company standard follows that standard instead; see the precedence rules in [`../SKILL.md`](../SKILL.md).
 
-See `project-structure.md` before creating or moving packages.
+Structure is defined in [`project-structure.md`](project-structure.md) and is mandatory there too.
 
 ## FastAPI boundaries
 
@@ -28,7 +28,7 @@ model / mapper / repository (if the project has one)
 → persistence
 ```
 
-Do not raise `HTTPException` deep inside domain/service code unless the existing project intentionally couples that layer to FastAPI.
+Never raise `HTTPException` in domain/service code. Map HTTP errors at the router boundary; a service that already raises it needs the calls below it converted.
 
 ## Sync vs async
 
@@ -62,7 +62,7 @@ class OrderService:
 
 Do not create an ABC/Protocol solely because there is one implementation.
 
-Do not introduce a new `repositories/` layer automatically. If the project already uses repositories, preserve that boundary and do not bypass it.
+Do not introduce a new `repositories/` layer — it is not part of the mandatory layout. If the project already has repositories, services **must** use that boundary, because two competing data-access paths are worse than either one alone.
 
 ## Pydantic schemas
 
@@ -76,7 +76,7 @@ class CreateOrderRequest(BaseModel):
 
 Prefer `Field`, `field_validator`, and `model_validator` over a custom generic validation framework.
 
-Do not return ORM objects directly from public APIs unless response serialization is deliberately configured and already used by the project.
+Do not return ORM objects directly from public APIs. Always return `schemas/` models via `response_model`.
 
 Duplicated fields between create/update schemas are acceptable when the schemas have different API meanings.
 
@@ -236,7 +236,7 @@ Keep business rejection separate from transient failure. For example, "document 
 
 Do not extract shared validators, nodes, state bases, tool bases, or `BaseGraph` merely because two implementations look similar.
 
-Extraction is reasonable when there is a concrete shared invariant/contract, an existing project abstraction, multiple implementations, or an explicit user request.
+Extraction is reasonable when there is a concrete shared invariant/contract, multiple implementations, an explicit extension point, or an explicit user request. An existing project abstraction is **not** by itself a reason to extract — that is what produces speculative layering.
 
 Avoid proactive:
 

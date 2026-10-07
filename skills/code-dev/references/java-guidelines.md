@@ -1,6 +1,6 @@
 # Java Guidelines
 
-These are defaults for Java/Spring backend work. Existing project conventions take precedence when they are consistent, but Java business services/components follow the interface-first rules below.
+These are **mandatory** rules for Java/Spring backend work. They apply regardless of what the target project currently looks like — a project that does not follow them gets changed to follow them, not exempted from this file. A project covered by a company standard is governed by that standard instead; see the precedence rules in [`../SKILL.md`](../SKILL.md).
 
 ## Business interface rule
 
@@ -34,7 +34,7 @@ Inside a dedicated `biz` module, apply interface-first design to business-behavi
 
 ### Ordinary monolithic Spring project
 
-When there is no dedicated Maven `*.biz` module, keep business logic under the project's `service/` or `services/` package and also use interface + `impl/`:
+When there is no dedicated Maven `*.biz` module, keep business logic under the project's `service/` package and also use interface + `impl/`:
 
 ```text
 com.example.order/
@@ -49,7 +49,7 @@ com.example.order/
 └── entity/
 ```
 
-Use the existing singular/plural package name rather than renaming a coherent project.
+Use the singular package name (`service/`, `mapper/`, `entity/`) as shown above. A project currently using `services/` gets migrated to `service/`; both are not left in place.
 
 ### Required conventions
 
@@ -93,9 +93,9 @@ dto/
     └── OrderResponse.java
 ```
 
-Do not return persistence entities directly from public controllers unless that is an intentional existing convention.
+Do not return persistence entities directly from public controllers. Public controllers return `dto/response/` types.
 
-Use Bean Validation (`@NotNull`, `@Size`, custom validators) when the project already uses it. Do not replace framework validation with handwritten `validate()` methods without a reason.
+Use Bean Validation (`@NotNull`, `@Size`, custom validators) for request constraints. Do not hand-roll `validate()` methods in service code to re-check what the model layer already enforces.
 
 ## Domain types, constants, and enums
 
@@ -174,7 +174,7 @@ when `OrderServiceDelegate` only forwards the call.
 
 ## Inheritance
 
-Prefer composition or concrete implementation classes when inheritance only saves boilerplate. Flag deep project-owned hierarchies when they hide behavior without adding semantic value.
+Prefer composition or concrete implementation classes when inheritance only saves boilerplate. Flatten project-owned hierarchies deeper than two levels: replace them with composition unless the hierarchy itself is the domain contract the code is expressing.
 
 ## New layers and patterns
 
@@ -192,7 +192,7 @@ If the project already has another meaningful layer, preserve and use it instead
 
 ## When extraction is requested
 
-Place extracted code according to the repository's existing structure first. If no convention exists, prefer domain ownership over generic package names.
+Place extracted code according to [`project-structure.md`](project-structure.md): domain ownership first, generic package names only for genuinely cross-domain concerns. The user's request decides *whether* to extract; it does not decide *where* the result goes.
 
 Examples:
 

@@ -1,111 +1,136 @@
 {
   "skill_name": "code-dev",
-  "description": "Regression cases for project-aware Java, Python, and TypeScript implementation: preserve project conventions, avoid speculative indirection, document useful code contracts, and publish TypeScript packages with clear public entry points.",
+  "description": "Regression cases for the mandatory code-dev standard: fixed project structure, interface-first Java business components, Simplified-Chinese comments with hierarchical step numbering, and TypeScript package entry points.",
   "evals": [
     {
       "id": 1,
-      "prompt": "新建一个普通单体 Spring Boot 项目，新增订单业务 Service。",
-      "expected_output": "在 service/ 或项目已有 services/ 下创建 OrderService 接口，并在 impl/ 下创建 OrderServiceImpl；Controller/其他业务调用方依赖 OrderService，不直接依赖 Impl。"
+      "prompt": "Create a new monolithic Spring Boot project and add an order business service.",
+      "expected_output": "Create the OrderService interface under service/ and OrderServiceImpl under service/impl/; controllers and other business callers must depend on OrderService and must never depend on the impl directly."
     },
     {
       "id": 2,
-      "prompt": "这是一个多 Maven 项目，community.biz 是独立业务模块。现在给 like 域新增 LikeService、LikeRedisStore 和 LikeStreamRelay。",
-      "expected_output": "在 community.biz 的 like 包中创建三个接口，并在 like/impl/ 中创建对应 LikeServiceImpl、LikeRedisStoreImpl、LikeStreamRelayImpl；调用方依赖接口。"
+      "prompt": "This is a multi-Maven project where community.biz is a standalone business module. Now add LikeService, LikeRedisStore, and LikeStreamRelay for the like domain.",
+      "expected_output": "Create the three interfaces in the like package of community.biz and their LikeServiceImpl, LikeRedisStoreImpl, and LikeStreamRelayImpl counterparts in like/impl/; callers must depend on the interfaces."
     },
     {
       "id": 3,
-      "prompt": "订单状态只有 PENDING、PAID、CANCELLED，帮我整理一下。",
-      "expected_output": "允许创建有明确领域含义的 OrderStatus enum；不要因为 skill 反对抽象而把领域状态继续散落成字符串，也不要创建全局 CommonEnums 垃圾桶。"
+      "prompt": "The order status only has PENDING, PAID, and CANCELLED; help me tidy this up.",
+      "expected_output": "Creating an OrderStatus enum with clear domain meaning is allowed; never scatter the domain states as raw strings just because the skill pushes back on abstraction, and never create a global CommonEnums dumping ground."
     },
     {
       "id": 4,
-      "prompt": "两个 DTO 都有 productId 非空校验，要不要立刻抽 CommonValidator？",
-      "expected_output": "不因为两段相似代码自动抽公共 Validator；先判断是否是同一稳定规则、是否已有共享所有者、是否真的存在一致性风险。"
+      "prompt": "Two DTOs both validate that productId is non-null; should I extract a CommonValidator right away?",
+      "expected_output": "Never auto-extract a shared Validator just because two snippets look alike; first determine whether it is the same stable rule, whether a shared owner already exists, and whether a real consistency risk exists."
     },
     {
       "id": 5,
-      "prompt": "5 个调用方必须使用完全相同的签名校验规则，而且之前出现过修复不同步的问题，帮我重构。",
-      "expected_output": "允许提取一个拥有明确职责的共享签名校验组件，因为存在稳定共享 invariant 和真实一致性风险；不要再额外创建无关 base/framework 层。"
+      "prompt": "Five callers must use exactly the same signature-validation rule, and fixes have previously drifted out of sync; refactor this.",
+      "expected_output": "Extracting a shared signature-validation component with a clear responsibility is allowed, because a stable shared invariant and a real consistency risk exist; never additionally create an unrelated base/framework layer."
     },
     {
       "id": 6,
-      "prompt": "这个 OrderServiceImpl 方法只有一行调用 manager.cancel()，但是方法上有 @Transactional 和权限切面，这层要删吗？",
-      "expected_output": "不要仅按行数判断为无意义 pass-through；识别接口契约、事务/安全边界的实际职责，可以保留。"
+      "prompt": "This OrderServiceImpl method only calls manager.cancel() on a single line, but it carries @Transactional and a permission aspect; should this layer be removed?",
+      "expected_output": "Never judge it a meaningless pass-through by line count alone; identify the real responsibility of the interface contract and the transaction/security boundary, and the method may be kept when it actually carries that responsibility."
     },
     {
       "id": 7,
-      "prompt": "微服务项目已经有 common-api 模块，新增一个跨服务使用的 OrderCreatedEvent。",
-      "expected_output": "沿用现有 common-api 作为稳定消息契约模块；不要另建 base-service，也不要把订单业务实现放进共享模块。"
+      "prompt": "The microservice project already has a common-api module; add an OrderCreatedEvent that is used across services.",
+      "expected_output": "Reuse common-api as the stable message-contract module; never create a separate base-service, and never put order business implementations into the shared module."
     },
     {
       "id": 8,
-      "prompt": "order-service 和 product-service 有两段看起来相似的库存校验，帮我顺便搬进 shared-kernel。",
-      "expected_output": "先区分是否真的是同一跨域规则；如果只是两个服务各自的领域规则，不主动共享。只在用户明确要求且共享边界合理时移动。"
+      "prompt": "order-service and product-service each have a stock check that looks similar; while you are at it, move them into shared-kernel.",
+      "expected_output": "First determine whether it is genuinely the same cross-domain rule; if they are just each service's own domain rule, never share them proactively. Move them only when the user explicitly asks and the sharing boundary is sound."
     },
     {
       "id": 9,
-      "prompt": "新建 FastAPI 项目，用 src layout，帮我给个合理结构。",
-      "expected_output": "使用 src/app/main.py、app/api、app/services 等一致的 Python package 结构；不要出现 src/main.py 却又 from app... 的不一致。"
+      "prompt": "New FastAPI project using the src layout; give me a sensible structure.",
+      "expected_output": "Use a consistent Python package structure such as src/app/main.py, app/api, and app/services; never mix src/main.py with `from app...` imports."
     },
     {
       "id": 10,
-      "prompt": "现有 FastAPI 项目已经有 repositories/，新增订单查询功能。",
-      "expected_output": "继续使用已有 repository 边界，不因为 greenfield 默认不推荐 repository 就绕过它直接访问 ORM。"
+      "prompt": "The existing FastAPI project already has repositories/; add an order query feature.",
+      "expected_output": "The existing repository boundary must be used and the ORM must never be accessed around it; at the same time repositories/ is not part of the mandatory structure, so never add a second set. The reason is that two coexisting data-access paths are worse than either single path."
     },
     {
       "id": 11,
-      "prompt": "FastAPI async endpoint 里面直接 requests.get() 拉第三方接口，可以吗？",
-      "expected_output": "指出 async def 不会让 blocking I/O 自动异步；优先使用项目已有异步 HTTP client 或既有线程/offload 方案。"
+      "prompt": "A FastAPI async endpoint calls a third-party API with requests.get() directly; is that acceptable?",
+      "expected_output": "Point out that async def does not make blocking I/O asynchronous; prefer the project's existing async HTTP client or its existing thread/offload approach."
     },
     {
       "id": 12,
-      "prompt": "给 FastAPI 登录请求加 username/password 非空校验。",
-      "expected_output": "优先使用 Pydantic Field/validator 在 schema 层表达输入约束，而不是把所有校验塞进 route 或新造 CommonValidator。"
+      "prompt": "Add non-empty validation for username/password to the FastAPI login request.",
+      "expected_output": "Prefer expressing input constraints with Pydantic Field/validators at the schema layer instead of stuffing every check into the route or inventing a new CommonValidator."
     },
     {
       "id": 13,
-      "prompt": "LangGraph 只有 retrieve 和 answer 两个很短的 node，怎么组织？",
-      "expected_output": "允许保持单文件 graph，state/node/routing/composition 都可放在一起，只要整体仍清楚；不要为了目录漂亮强制拆包。"
+      "prompt": "The LangGraph only has two short nodes, retrieve and answer; how should it be organized?",
+      "expected_output": "Keeping a single-file graph is allowed - state, nodes, routing, and composition may live together as long as the whole stays clear; never force a package split just to make the directory look nicer."
     },
     {
       "id": 14,
-      "prompt": "LangGraph 已经有 plan、retrieve、grade、rewrite、generate 五个主要 node，graph.py 越来越长。",
-      "expected_output": "改为 graph package：graph.py + state.py + nodes/，主要 node 按文件拆分；nodes/__init__.py 只做空文件或轻量导出。"
+      "prompt": "The LangGraph already has five main nodes - plan, retrieve, grade, rewrite, generate - and graph.py keeps growing.",
+      "expected_output": "Migrate to a graph package: graph.py + state.py + nodes/, with the main nodes split into separate files; nodes/__init__.py must stay an empty file or hold only lightweight exports."
     },
     {
       "id": 15,
-      "prompt": "research_graph 和 support_graph 都有一个名字叫 search 的 node，但使用的 state 和语义不同，要不要抽到 core/langgraph？",
-      "expected_output": "不要仅因名字/代码相似就共享；graph-specific node 保持在各自 graph 中。"
+      "prompt": "research_graph and support_graph both have a node named search, but they use different state and semantics; should I extract it to core/langgraph?",
+      "expected_output": "Never share a node merely because its name or code is similar; graph-specific nodes must stay inside their own graphs."
     },
     {
       "id": 16,
-      "prompt": "三个 graph 都调用完全相同的 checkpoint 配置和公共审计工具，应该放哪里？",
-      "expected_output": "允许将真正跨 graph 的 checkpoint/审计基础设施放入 core/langgraph 或项目已有共享基础设施位置，名称应体现职责。"
+      "prompt": "All three graphs call exactly the same checkpoint configuration and the same public audit utility; where should they live?",
+      "expected_output": "Infrastructure that is genuinely cross-graph - checkpoint/audit - is allowed in core/langgraph or in the project's existing shared-infrastructure location, and the name must reflect the responsibility."
     },
     {
       "id": 17,
-      "prompt": "LangGraph 的 should_continue 里面顺便调用 LLM、查数据库再决定路由。",
-      "expected_output": "建议 routing function 聚焦路由判断；实质性 LLM/数据库工作放进 node，再让路由基于 state 决策。"
+      "prompt": "The LangGraph's should_continue also calls the LLM and queries the database before deciding the route.",
+      "expected_output": "Recommend keeping the routing function focused on the routing decision; substantive LLM/database work belongs in a node, with the route then decided from state."
     },
     {
       "id": 18,
-      "prompt": "我把所有 LangGraph node 都加 @tool，这样是不是更统一？",
-      "expected_output": "区分 tool 与 node：只有需要由模型选择/调用的能力才是 tool；普通 graph execution step 不应为了统一而加 @tool。"
+      "prompt": "I added @tool to every LangGraph node - is that more consistent?",
+      "expected_output": "Distinguish tools from nodes: only capabilities that the model must select or invoke are tools; an ordinary graph execution step must never get @tool just for consistency."
     },
     {
       "id": 19,
-      "prompt": "在 nodes/__init__.py 里初始化模型、连接数据库并 compile graph，方便 import。",
-      "expected_output": "拒绝把这些副作用放进 __init__.py；__init__.py 保持空或轻量导出，初始化/compile 放在明确的 composition/runtime 边界。"
+      "prompt": "Initialize the model, connect the database, and compile the graph inside nodes/__init__.py so that it is convenient to import.",
+      "expected_output": "Refuse to put those side effects into __init__.py; __init__.py must stay empty or hold only lightweight exports, and initialization/compilation must be placed at an explicit composition/runtime boundary."
     },
     {
       "id": 20,
-      "prompt": "用户明确要求把两个 service 的重复签名校验抽成一个公共组件。",
-      "expected_output": "执行用户要求的抽取，并让组件拥有清晰职责；skill 不应以“禁止抽象”为理由拒绝显式重构需求，也不要顺便扩展成一整套 base framework。"
+      "prompt": "The user explicitly asks to extract the duplicated signature validation in two services into one shared component.",
+      "expected_output": "Perform the extraction the user asked for and give the component a clear responsibility; the skill must never refuse an explicit refactoring request on the grounds of \"no abstraction\", and must never expand it into a whole base framework along the way."
     },
     {
       "id": 21,
-      "prompt": "community.biz.like 里新增一个 LikeStatus 枚举和 RedisConfig 配置，也要做接口 + Impl 吗？",
-      "expected_output": "不需要。biz 接口规则针对业务行为组件；enum、config、DTO、entity、exception 等数据或框架定义类型不做无意义接口包装。"
+      "prompt": "I am adding a LikeStatus enum and a RedisConfig configuration in community.biz.like - do these also need an interface + Impl?",
+      "expected_output": "No. The biz interface rule targets behavioral business components; data or framework definition types such as enums, config, DTOs, entities, and exceptions must never be wrapped in a meaningless interface/impl pair."
+    },
+    {
+      "id": 22,
+      "prompt": "My old project uses a services/ package name; should I migrate it to service/ as you said?",
+      "expected_output": "Migrate to service/. The standard is mandatory and the package name has been unified to the singular; never grant an exemption merely because the existing project is consistent and reasonable. Only projects covered by a company-standard skill are exempt."
+    },
+    {
+      "id": 23,
+      "prompt": "All the comments in the project are English Javadoc; should I convert them to Chinese too?",
+      "expected_output": "Convert the English comments in the files touched by this change into Simplified Chinese - this is mandatory; never sweep the whole repository while doing it. Keep English identifiers, framework names, and protocol names as they are."
+    },
+    {
+      "id": 24,
+      "prompt": "Simplify this service into a single class with no interface - the team convention is to skip interfaces.",
+      "expected_output": "State the conflict: personal projects must follow this standard, and Java business components are always interface + impl/ - a team habit is never an exemption. The method body may be simplified, but the contract layer must be kept; if the project really is covered by a company-standard skill, the company standard wins."
+    },
+    {
+      "id": 25,
+      "prompt": "Our company has its own backend-standard skill already installed in the project; do we still have to follow the code-dev structure?",
+      "expected_output": "No. When a company-standard skill exists it takes precedence and code-dev becomes advisory. That is the only exemption source in this standard."
+    },
+    {
+      "id": 26,
+      "prompt": "A microservice has a shared-kernel module that holds common code; does it need to be renamed?",
+      "expected_output": "It must be renamed to common-api/. The shared-module name is unified; names such as base-service, common, platform-core, and shared-kernel must no longer be used."
     }
   ]
 }

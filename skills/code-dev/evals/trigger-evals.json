@@ -2,80 +2,80 @@
   {
     "query": "帮我实现一个订单创建接口",
     "should_trigger": true,
-    "reason": "Real backend implementation task; the skill description explicitly covers backend implementation work."
+    "reason": "Real backend implementation task; the skill description explicitly covers backend implementation work. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
   },
   {
-    "query": "帮我修改 OrderService 里的取消逻辑",
+    "query": "Change the cancel logic in OrderService",
     "should_trigger": true,
     "reason": "Existing Java backend modification task."
   },
   {
-    "query": "项目里已经有 interface + impl 结构，帮我新增一个 UserService",
+    "query": "The project already uses the interface + impl structure; add a UserService for me",
     "should_trigger": true,
     "reason": "Backend implementation where project-convention handling matters."
   },
   {
-    "query": "review 一下这段 Service 有没有不必要的抽象",
+    "query": "Review this Service for unnecessary abstraction",
     "should_trigger": true,
     "reason": "Backend code review is explicitly in scope."
   },
   {
-    "query": "重构一下这个 Java Service，把重复代码抽出来",
+    "query": "Refactor this Java Service and extract the duplicated code",
     "should_trigger": true,
     "reason": "Backend refactoring remains in scope even when the user explicitly requests extraction; the skill should respect that request rather than deactivate."
   },
   {
     "query": "这个项目要不要加一个 common 模块放公共代码？",
     "should_trigger": true,
-    "reason": "Application architecture/abstraction decision directly covered by the skill."
+    "reason": "Application architecture/abstraction decision directly covered by the skill. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
   },
   {
-    "query": "用 Python 写一个 FastAPI 登录接口",
+    "query": "Write a FastAPI login endpoint in Python",
     "should_trigger": true,
     "reason": "Python/FastAPI application implementation is explicitly in scope."
   },
   {
-    "query": "给这个 FastAPI 项目加一个 repository 层",
+    "query": "Add a repository layer to this FastAPI project",
     "should_trigger": true,
     "reason": "Python backend structural change where existing project conventions and abstraction reasons matter."
   },
   {
-    "query": "LangGraph 里帮我加一个 retrieve node",
+    "query": "Add a retrieve node to my LangGraph",
     "should_trigger": true,
     "reason": "LangGraph implementation is explicitly in scope."
   },
   {
-    "query": "这个 LangGraph 有 6 个 node，全写在 graph.py 太乱了，帮我拆一下",
+    "query": "This LangGraph has 6 nodes all crammed into graph.py; split it up for me",
     "should_trigger": true,
     "reason": "LangGraph structural refactoring is explicitly covered."
   },
   {
-    "query": "两个 graph 都有一个 search node，要不要抽到 core/langgraph？",
+    "query": "Both graphs have a search node; should I extract it into core/langgraph?",
     "should_trigger": true,
     "reason": "Cross-graph ownership/reuse decision is directly covered."
   },
   {
-    "query": "Python 项目里的 __init__.py 应该怎么整理？",
+    "query": "How should __init__.py be organized in a Python project?",
     "should_trigger": true,
     "reason": "Application package structure and side-effect decisions are covered by the Python/project-structure guidance."
   },
   {
-    "query": "order-service 和 product-service 都有公共 DTO，帮我整理共享模块",
+    "query": "order-service and product-service both have shared DTOs; help me organize the shared module",
     "should_trigger": true,
     "reason": "Microservice shared-contract design is explicitly in scope."
   },
   {
-    "query": "写代码的时候可读性优先，不要过度设计",
+    "query": "When writing code, prioritize readability over over-engineering",
     "should_trigger": true,
     "reason": "Direct statement of the skill's purpose."
   },
   {
-      "query": "Use $code-dev when implementing this service",
+    "query": "Use $code-dev when implementing this service",
     "should_trigger": true,
-      "reason": "Explicit invocation by the new skill name."
+    "reason": "Explicit invocation by the new skill name."
   },
   {
-    "query": "解释什么是 Java 多态",
+    "query": "Explain what Java polymorphism is",
     "should_trigger": false,
     "reason": "Educational concept question, not application implementation/review/refactoring."
   },
@@ -85,33 +85,63 @@
     "reason": "Framework explanation question rather than a real code change."
   },
   {
-    "query": "用 Python 写个快排",
+    "query": "Write a quicksort in Python",
     "should_trigger": false,
     "reason": "Algorithm exercise, not backend application structure/code."
   },
   {
-    "query": "这个 SQL 查询怎么优化",
+    "query": "How do I optimize this SQL query?",
     "should_trigger": false,
     "reason": "Database query tuning alone is outside the coding-structure skill."
   },
   {
-    "query": "npm install 报错了怎么解决",
+    "query": "npm install fails; how do I fix it?",
     "should_trigger": false,
     "reason": "Tooling/debugging question unrelated to backend code structure."
   },
   {
     "query": "帮我看看 NullPointerException 为什么报错",
     "should_trigger": false,
-    "reason": "Generic runtime debugging without a structural implementation/review request."
+    "reason": "Generic runtime debugging without a structural implementation/review request. Kept in Chinese on purpose: a Chinese technical question that is still out of scope must not trigger the skill, so this also covers cross-language precision."
   },
   {
-    "query": "查询一下今天北京天气",
+    "query": "Look up today's weather in Beijing",
     "should_trigger": false,
     "reason": "Unrelated to coding."
   },
   {
-    "query": "帮我写一封英文邮件",
+    "query": "Write an email in English for me",
     "should_trigger": false,
     "reason": "Writing task, not coding."
+  },
+  {
+    "query": "帮我把项目的目录结构统一一下",
+    "should_trigger": true,
+    "reason": "Project-structure normalization is a mandatory part of the standard and is the single most common real trigger after implementation work. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
+  },
+  {
+    "query": "What is the Javadoc standard for this project? I want to unify it.",
+    "should_trigger": true,
+    "reason": "Comment standard questions are explicitly covered, including the Simplified-Chinese requirement."
+  },
+  {
+    "query": "Our team convention is to skip interfaces for services; do we have to change that to match your standard?",
+    "should_trigger": true,
+    "reason": "A direct conflict between project convention and the mandatory standard; the skill must be loaded to resolve it rather than the agent guessing."
+  },
+  {
+    "query": "公司有自己的规范 skill，code-dev 还要用吗",
+    "should_trigger": true,
+    "reason": "The company-standard override is the one exemption in the precedence model and must not be resolved without the skill. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
+  },
+  {
+    "query": "帮我解释一下什么是依赖注入",
+    "should_trigger": false,
+    "reason": "Educational concept question; the skill governs applied structure and comments, not framework teaching. Kept in Chinese on purpose: a Chinese educational question must not trigger the skill, so this also covers cross-language precision."
+  },
+  {
+    "query": "Change this variable to final",
+    "should_trigger": false,
+    "reason": "Trivial one-token edit with no structural or documentation consequence."
   }
 ]

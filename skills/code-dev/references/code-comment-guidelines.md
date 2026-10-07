@@ -1,52 +1,77 @@
-# 代码注释与文档规范
+# Code Comment and Documentation Guidelines
 
-## 范围与原则
+## Scope and principles
 
-- 用户明确要求和项目既有约定优先；默认用简体中文写新增注释，保留必要英文术语，不翻译无关旧注释。
-- 只维护本次新增或修改涉及的注释，不顺带补齐全仓库。修改行为时同步修正已经过时的相关注释。
-- 注释说明调用者需要知道的契约、业务原因、边界条件、顺序依赖、单位、空值、特殊值、副作用或实际异常；不要复述变量名、类型或显而易见的代码步骤。
-- 方法或函数包含多个有序业务阶段时，必须按实际结构用编号注释标明：同级步骤用 1.、2.、3.；子步骤按层级用 1.1、1.2、1.2.1 等。编号层级应对应真实的父子步骤，不套固定模板。只给有意义的阶段和条件编号，不给每条查询或赋值编号；单步方法、getter/setter 和简单转发不编号。
-- 简单 getter/setter、属性和转发方法可省略文档；不要为了清空静态检查提示堆砌注释。
-- 不根据名称猜测线程安全、事务、幂等、异步或异常保证，只记录实现和项目契约确实保证的行为。
-- 需要判断具体注释取舍时，读取 [代码注释示例](code-comment-examples.md)。
+- **Always write comments and documentation in Simplified Chinese**, keeping the necessary English terms (identifiers, framework names, protocol names). A project whose comments are in English must be rewritten to Chinese as well; this is mandatory.
+- Comment scope is limited to the files touched by the current change: comments at the change site must be Chinese; pre-existing English comments in the same file are rewritten too; do not sweep the whole repository on the side.
+- Comments state the contract the caller needs to know, the business reason, boundary conditions, ordering dependencies, units, null values, special values, side effects, or the exceptions that are actually thrown; never restate the variable name, the type, or obvious code steps.
+- When a method or function contains multiple ordered business stages, it must be documented with numbered comments that follow the real structure: sibling steps use `1.`, `2.`, `3.`; sub-steps use hierarchy levels such as `1.1`, `1.2`, `1.2.1`. The numbering levels must correspond to real parent/child steps, not a fixed template. Number only meaningful stages and conditions, never every query or assignment; single-step methods, getters/setters, and simple forwarders take no numbering.
+- Simple getters/setters, properties, and forwarder methods may omit documentation; never pile on comments just to silence static-analysis warnings.
+- Never infer thread safety, transactional behavior, idempotency, asynchrony, or exception guarantees from a name; record only the behavior that the implementation and the project contract actually guarantee.
+- To decide what a specific comment should contain, read [Code comment examples](code-comment-examples.md).
+
+### Comments exempt from the Simplified Chinese requirement
+
+The following stay as they are and are not language-checked:
+
+- shebangs (`#!/usr/bin/env python3`) and encoding declarations (`# -*- coding: utf-8 -*-`)
+- linter / type-checker directives: `# type:`, `# noqa:`, `# pylint:`, `# flake8:`, `# eslint-disable`, `# prettier-ignore`, `# spotless`
+- code-generator headers (`Code generated ... DO NOT EDIT`)
+- licence and copyright headers (`Copyright`, `Licensed under`, `SPDX-License-Identifier`)
+- Javadoc `@author` (a person's name), `@see`, `@since`
+- index comments consisting of nothing but a URL
+
+Translating or deleting any of these is wrong: their content is fixed by the tool or by law.
 
 ## Java
 
-- 对外业务接口和公共 API 用 Javadoc 说明职责及调用者需要遵守的约束。
-- 参数、返回值和异常只在需要补充语义时写 @param、@return、@throws，例如单位、范围、空值、特殊返回值或失败条件；不要重复 Java 类型。
-- 实现与接口行为相同的重写方法可沿用项目的 @inheritDoc 约定；行为有差异时写出差异。
-- 多阶段 Java 业务方法必须按上面的层级编号组织方法体注释；编号描述阶段或业务约束，不代替 Javadoc 契约。
-- 实现内部的行注释用于解释业务原因、并发条件或容易误改的限制，不逐行翻译代码。
+- Use Javadoc on externally exposed business interfaces and public APIs to state their responsibility and the constraints callers must follow.
+- Write `@param`, `@return`, and `@throws` only when they add semantics, such as units, ranges, null values, special return values, or failure conditions; never repeat the Java types.
+- An override that has the same behavior as the interface must always use `@inheritDoc` instead of copying the contract; when the behavior differs, document the difference on the override.
+- Multi-stage Java business methods must organize the method-body comments with the hierarchical numbering above; the numbers describe stages or business constraints and never replace the Javadoc contract.
+- Line comments inside an implementation explain business reasons, concurrency conditions, or constraints that are easy to break by mistake; never translate the code line by line.
 
 ## Python
 
-- 遵循仓库选择的 docstring 风格；没有约定时，本技能默认 Google 风格。
-- 使用三引号 docstring。函数或方法在契约需要时记录 Args、Returns、Raises；类和模块文档描述其职责及有用的公开内容。
-- 简短且含义明显的函数或属性不强制添加 docstring。
+- Always use Google-style docstrings, regardless of what the repository currently does. Use triple-quoted docstrings. Document `Args`, `Returns`, and `Raises` on a function or method whenever the contract needs them; class and module documentation describes their responsibility and useful public content.
+- Short, self-evident functions and properties are not required to have a docstring.
 
 ## TypeScript
 
-- 对外导出的包 API 使用 /** ... */ 文档注释，采用 TSDoc 可识别的写法；普通实现说明使用 // 或短块注释。
-- 用 TypeScript 声明表达类型，不在注释里重复类型。@param、@returns、@throws 仅补充参数语义、返回约定和真实失败条件。
-- 多段契约、业务背景或限制放在 @remarks；只有能帮助消费者正确调用时才加 @example；弃用 API 时用 @deprecated 并说明替代方案。
-- 内部注释解释原因、边界或顺序约束。避免逐行复述实现，也不要为了文档工具给每个私有成员套模板。
+- Externally exported package APIs use `/** ... */` documentation comments written in a form TSDoc recognizes; ordinary implementation notes use `//` or short block comments.
+- Express types with TypeScript declarations and never repeat them in comments. `@param`, `@returns`, and `@throws` only add parameter semantics, return contracts, and real failure conditions.
+- Put multi-part contracts, business context, or limitations in `@remarks`; add `@example` only when it helps consumers call the API correctly; for a deprecated API use `@deprecated` and state the replacement.
+- Internal comments explain reasons, boundaries, or ordering constraints. Avoid restating the implementation line by line, and never apply a boilerplate template to every private member just to satisfy a documentation tool.
 
-## 待办标记
+## TODO markers
 
-- 用 TODO(负责人): 原因或下一步记录确实未完成的工作。
-- 负责人必须来自用户或项目约定；未知时说明待确认，不编造姓名，也不为满足格式新增 TODO。
+- Always record genuinely unfinished work as `TODO(owner): reason or next step`. A TODO without an owner does not conform to this standard. `FIXME` and `XXX` must also carry an owner.
+- The marker must appear at the start of the comment; mentioning "there is a TODO here" inside a sentence is explanatory prose and does not count as a TODO marker.
+- The owner must come from the user or the project convention; when it is unknown, write "to be confirmed" — never invent a name, and never add a TODO just to satisfy the format.
 
-## 可选检查器
+## Checker
 
-新增或修改 Java/Python 文件后，如有帮助，可运行：
+This standard is mandatory; run the checker after changing Java/Python files:
 
-    python <项目指定解释器> <skill目录>/scripts/check_comments.py <改动文件或目录>
+```sh
+python <skill-dir>/scripts/check_comments.py <changed-file-or-dir>
+```
 
-检查器只覆盖 Java 和 Python，并按方法长度/分支数启发式提示复核编号；短小但确有多阶段逻辑的方法也必须人工按规范编号。WARNING 不能证明注释语义正确，不要为无意义提示堆注释。TypeScript 注释按上面的 TSDoc 约定和项目现有工具人工检查。
+Exit codes:
 
-## 官方资料
+| Code | Meaning | Action |
+| --- | --- | --- |
+| 0 | No ERROR; WARNINGs may still be present | Judge each WARNING by hand |
+| 1 | ERRORs are present | Must be fixed, then rerun |
+| 2 | No `.java` / `.py` files matched | **Not the same as "no problems"** — check that the path is correct |
 
-- [Oracle：Javadoc 文档注释规范](https://docs.oracle.com/en/java/javase/22/docs/specs/javadoc/doc-comment-spec.html)
-- [Python PEP 257：Docstring 约定](https://peps.python.org/pep-0257/)
-- [Microsoft TSDoc：标准标签](https://tsdoc.org/pages/spec/tag_kinds/)
-- [TypeScript：JSDoc 标签支持](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html)
+There are only two kinds of ERROR: the file cannot be parsed or read (a tool failure), and a TODO marker is missing its owner or its description. Fix the file in the first case; in the second, complete the marker into `TODO(owner): description` — never delete the TODO itself.
+
+The checker covers Java and Python, heuristically flags complex methods for numbering review based on method length/branch count, and checks whether comments are in Simplified Chinese. Short methods that genuinely contain multi-stage logic must still be numbered by hand according to this standard. A WARNING never proves that a comment is semantically correct; never pile on comments to satisfy a meaningless warning. TypeScript comments are reviewed by hand against the TSDoc conventions above.
+
+## Official references
+
+- [Oracle: Javadoc documentation comments specification](https://docs.oracle.com/en/java/javase/22/docs/specs/javadoc/doc-comment-spec.html)
+- [Python PEP 257: docstring conventions](https://peps.python.org/pep-0257/)
+- [Microsoft TSDoc: standard tags](https://tsdoc.org/pages/spec/tag_kinds/)
+- [TypeScript: JSDoc tag support](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html)

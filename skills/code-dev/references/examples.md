@@ -1,6 +1,6 @@
 # Examples
 
-These examples illustrate the decision rule: preserve real boundaries and existing conventions; avoid indirection that exists only for symmetry or line-count reduction.
+These examples are binding, not illustrative: they show the required shape. Preserve real boundaries and existing conventions that satisfy the standard; avoid indirection that exists only for symmetry or line-count reduction.
 
 ## Java monolith: service interface + impl
 
@@ -157,7 +157,7 @@ repositories/
 └── user_repository.py
 ```
 
-then a new service should use that boundary rather than bypass it just because a greenfield project might access SQLAlchemy directly.
+then a new service must use that boundary rather than bypass it just because a greenfield project might access SQLAlchemy directly.
 
 ## Python: async does not make blocking I/O async
 
