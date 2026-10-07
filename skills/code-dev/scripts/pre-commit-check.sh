@@ -6,6 +6,10 @@
 #   - 源文件不是 UTF-8，两个检查器都读不了它
 #   - check_comments.py 报出 ERROR（语法错误 / 读取失败 / 待办缺负责人）
 #
+# 两个检查器都读**索引**内容而不是工作区。传工作区路径是行不通的：
+# "暂存违规内容后再把工作区改干净"能绕过门禁，而"暂存干净内容但还在编辑"
+# 会误拦一个本来干净的提交。
+#
 # READABILITY_FAIL_ON=warning 或 READABILITY_FIRST_STRICT=1 时，
 # 抽象检查器的 WARNING 也会阻断。
 set -euo pipefail
@@ -40,7 +44,7 @@ if [ -z "$PYTHON_BIN" ]; then
   PYTHON_BIN="$(command -v python3 || command -v python || true)"
 fi
 if [ -z "$PYTHON_BIN" ]; then
-  echo '[code-dev] 找不到 Python，跳过 advisory 检查。'
+  echo '[code-dev] 找不到 Python，跳过检查。Windows 上请设置 READABILITY_PYTHON。'
   [ "${READABILITY_FIRST_STRICT:-0}" = "1" ] && exit 1
   exit 0
 fi
@@ -63,13 +67,13 @@ if [ -z "$SMELL" ]; then
   echo '[code-dev] 找不到 check-abstraction-smell.py，跳过抽象检查。'
   [ "${READABILITY_FIRST_STRICT:-0}" = "1" ] && exit 1
 else
-  echo '[code-dev] 抽象检查：'
+  echo '[code-dev] 抽象检查（暂存区）：'
   "$PYTHON_BIN" "$SMELL" "$PROJECT_ROOT" --staged --fail-on "$FAIL_ON" || STATUS=$?
 fi
 
-# 3. 注释检查器：只检查本次暂存的 .java / .py。
-#    之前这里完全没跑，导致注释规范在提交卡点上毫无覆盖，
-#    而它恰恰是这套 skill 中唯一带 ERROR 语义的检查器。
+# 3. 注释检查器：读暂存区内容。
+#    早先这里既没跑注释检查器、又是按工作区路径跑的，所以注释规范在提交
+#    卡点上先是无覆盖、后是可绕过 —— 而它恰恰是唯一带 ERROR 语义的检查器。
 COMMENT=""
 if ! COMMENT="$(find_checker check_comments.py)"; then
   COMMENT=""
@@ -81,15 +85,15 @@ else
   STAGED=()
   while IFS= read -r -d '' f; do
     case "$f" in
-      *.java|*.py) STAGED+=("$PROJECT_ROOT/$f") ;;
+      *.java|*.py) STAGED+=("$f") ;;
     esac
   done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 
   if [ ${#STAGED[@]} -eq 0 ]; then
     echo '[code-dev] 注释检查：本次没有暂存 Java/Python 文件，跳过。'
   else
-    echo "[code-dev] 注释检查（${#STAGED[@]} 个文件）："
-    "$PYTHON_BIN" "$COMMENT" "${STAGED[@]}" || {
+    echo "[code-dev] 注释检查（暂存区，${#STAGED[@]} 个文件）："
+    "$PYTHON_BIN" "$COMMENT" --staged || {
       rc=$?
       # 注释检查器只有 ERROR 才非零，那属于"检查未完成"或硬性违规，一律阻断
       STATUS=$rc

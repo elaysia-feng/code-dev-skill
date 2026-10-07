@@ -38,6 +38,7 @@ import argparse
 import ast
 import io
 import re
+import subprocess
 import sys
 import tokenize
 from dataclasses import dataclass
@@ -1021,8 +1022,26 @@ def iter_source_files(targets: Iterable[str]) -> Iterator[Path]:
             print(f"跳过不存在的路径: {target}", file=sys.stderr)
 
 
+def check_source(path: Path, source: str) -> List[Issue]:
+    """对已经读入内存的源码做检查，并按扩展名分发。
+
+    Args:
+        path: 用于生成问题报告的路径（可以不是磁盘上的真实路径）。
+        source: 文件内容。
+
+    Returns:
+        该文件的问题列表。
+    """
+    # 按扩展名分发，其他类型文件不检查
+    if path.suffix == ".py":
+        return check_python_file(path, source)
+    if path.suffix == ".java":
+        return check_java_file(path, source)
+    return []
+
+
 def check_file(path: Path) -> List[Issue]:
-    """按扩展名分发到对应语言的检查器。
+    """读取磁盘上的文件并检查。
 
     Args:
         path: 待检查的文件路径。
@@ -1037,13 +1056,79 @@ def check_file(path: Path) -> List[Issue]:
         source = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as exc:
         return [Issue(path, 1, ERROR, "read-error", f"无法读取文件: {exc}")]
+    return check_source(path, source)
 
-    # 2. 按扩展名分发，其他类型文件不检查
-    if path.suffix == ".py":
-        return check_python_file(path, source)
-    if path.suffix == ".java":
-        return check_java_file(path, source)
-    return []
+
+def _git(root: Path, *args: str) -> bytes:
+    """在指定仓库里执行 git，返回原始字节。
+
+    Args:
+        root: 仓库根目录。
+        args: 传给 git 的参数。
+
+    Returns:
+        标准输出字节。
+    """
+    return subprocess.run(["git", "-C", str(root), *args], check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+
+
+def check_staged(root: Optional[Path] = None) -> Tuple[List[Issue], int]:
+    """检查 Git 暂存区里将要提交的内容，而不是工作区当前内容。
+
+    必须读索引而不是工作区，否则"暂存违规内容后再把工作区改干净"就能绕过
+    提交门禁——而这正是最常见的工作流。已从磁盘删除但仍在暂存区的文件
+    同样会被检查到。
+
+    Args:
+        root: 仓库根目录；为 None 时从当前目录向上查找。
+
+    Returns:
+        ``(问题列表, 实际检查过的文件数)``。文件数与问题数必须分开报告，
+        否则"检查过但没发现问题"会被说成"没有可检查的文件"。
+    """
+    if root is None:
+        root = Path(_git(Path.cwd(), "rev-parse", "--show-toplevel")
+                    .decode("utf-8").strip())
+
+    # 1. 暂存区中将被新增或修改的文件
+    changed = _git(root, "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR")
+    selected = {p.decode("utf-8") for p in changed.split(b"\0") if p}
+    if not selected:
+        return [], 0
+
+    # 2. 索引里每个文件的 blob，内容以索引为准而非工作区
+    entries = _git(root, "ls-files", "--stage", "-z")
+    issues: List[Issue] = []
+    checked = 0
+    for entry in entries.split(b"\0"):
+        if not entry:
+            continue
+        metadata, raw_path = entry.split(b"\t", 1)
+        _mode, oid, stage = metadata.split()
+        relative = Path(raw_path.decode("utf-8"))
+        if relative.suffix not in (".java", ".py"):
+            continue
+        if relative.as_posix() not in selected:
+            continue
+        checked += 1
+        if stage != b"0":
+            issues.append(Issue(relative, 1, ERROR, "parse-error",
+                                "暂存区存在未解决的文件冲突"))
+            continue
+        # 3. 用索引内容做检查，报告路径仍是仓库里的真实相对路径
+        try:
+            source = _git(root, "cat-file", "blob", oid.decode("ascii")).decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            issues.append(Issue(relative, 1, ERROR, "read-error",
+                                f"不是 UTF-8，无法检查: {exc}"))
+            continue
+        except subprocess.CalledProcessError as exc:
+            issues.append(Issue(relative, 1, ERROR, "read-error",
+                                f"无法读取暂存内容: {exc}"))
+            continue
+        issues.extend(check_source(relative, source))
+    return issues, checked
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -1055,28 +1140,43 @@ def main(argv: Optional[List[str]] = None) -> int:
     Returns:
         存在 ERROR 时返回 1，否则返回 0。
     """
-    # 1. 解析参数并展开待检查文件
+    # 1. 解析参数：默认检查给定路径，--staged 改为检查 Git 暂存区
     parser = argparse.ArgumentParser(description="代码注释规范静态检查（Java / Python）")
-    parser.add_argument("targets", nargs="+", help="待检查的文件或目录")
+    parser.add_argument("targets", nargs="*", help="待检查的文件或目录")
+    parser.add_argument("--staged", action="store_true",
+                        help="检查 Git 暂存区内容，而不是工作区当前内容")
     args = parser.parse_args(argv)
 
-    files = list(iter_source_files(args.targets))
-    if not files:
-        # 没有匹配到文件 ≠ 没有问题；用退出码 2 与 stderr 提示区分
-        print("没有找到可检查的 .java / .py 文件（退出码 2）", file=sys.stderr)
-        return 2
+    if args.staged:
+        # 2. 暂存模式：读索引，报告路径是仓库里的真实相对路径
+        try:
+            issues, checked = check_staged()
+        except subprocess.CalledProcessError as exc:
+            print(f"无法读取 Git 暂存区: {exc}", file=sys.stderr)
+            return 2
+        if checked == 0:
+            print("暂存区没有可检查的 .java / .py 变更")
+            return 0
+    else:
+        if not args.targets:
+            parser.error("需要提供至少一个文件或目录，或使用 --staged")
+        files = list(iter_source_files(args.targets))
+        if not files:
+            # 没有匹配到文件 ≠ 没有问题；用退出码 2 与 stderr 提示区分
+            print("没有找到可检查的 .java / .py 文件（退出码 2）", file=sys.stderr)
+            return 2
+        checked = len(files)
+        issues = []
+        for path in files:
+            issues.extend(check_file(path))
 
-    # 2. 逐文件检查并按文件、行号排序输出
-    issues: List[Issue] = []
-    for path in files:
-        issues.extend(check_file(path))
+    # 3. 逐条输出并汇总；有 ERROR 时以非 0 退出码结束
     for issue in sorted(issues, key=lambda item: (str(item.path), item.line)):
         print(issue.format())
 
-    # 3. 汇总统计，有 ERROR 时以非 0 退出码结束
     errors = sum(1 for issue in issues if issue.level == ERROR)
     warnings = len(issues) - errors
-    print(f"\n检查 {len(files)} 个文件，发现 {errors} 个 ERROR，{warnings} 个 WARNING")
+    print(f"\n检查 {checked} 个文件，发现 {errors} 个 ERROR，{warnings} 个 WARNING")
     return 1 if errors else 0
 
 

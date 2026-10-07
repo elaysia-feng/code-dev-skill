@@ -932,12 +932,12 @@ def find_unreadable(files: list[Path], root: Path) -> list[dict]:
             f.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             out.append({
-                "file": str(f.relative_to(root)),
+                "file": f.relative_to(root).as_posix(),
                 "reason": f"not UTF-8 ({exc.reason} at byte {exc.start}); re-save it as UTF-8",
             })
         except OSError as exc:
             out.append({
-                "file": str(f.relative_to(root)),
+                "file": f.relative_to(root).as_posix(),
                 "reason": f"cannot read ({exc.strerror or exc})",
             })
     return out
@@ -977,7 +977,13 @@ def _scan(root: Path, args, selected: set[str] | None) -> tuple[list[dict], list
         smells.extend(find_python_abc_smell(root, python))
         smells.extend(find_python_pass_through(root, python))
     # 2. 报告仅涉及本次选择的文件，保留完整分析产生的跨文件关系。
-    return (smells if selected is None else [s for s in smells if _related(s, selected)], unreadable)
+    #    unreadable 必须一起收窄：仓库里任何一个历史 GBK 文件都不该阻断
+    #    与它无关的提交，否则这个检查在存量代码库上直接不可用。
+    if selected is None:
+        return smells, unreadable
+    scope = {s.replace("\\", "/") for s in selected}
+    return ([s for s in smells if _related(s, selected)],
+            [u for u in unreadable if u["file"] in scope])
 
 
 def _git(root: Path, *args: str) -> bytes:

@@ -4,6 +4,35 @@ All notable changes to this skill are recorded here. The version is kept in
 sync between `package.json` and `plugin.json`; a release is incomplete unless
 both are bumped.
 
+## 1.3.3
+
+Fixes three defects introduced by 1.3.1 and 1.3.2, all found by an independent
+verification pass against the published package.
+
+### Fixed
+
+- **The commit gate could be bypassed.** `pre-commit-check.sh` passed the
+  *working-tree* path to `check_comments.py`, so staging a violation and then
+  cleaning up the working tree let it through (`EXIT=0`), and a clean commit was
+  blocked when the working tree still held uncommitted edits. `check_comments.py`
+  now has a `--staged` mode that reads the Git index, and the hook uses it. Both
+  directions are covered by regression tests.
+- **One legacy non-UTF-8 file blocked every commit.** The abstraction checker
+  made undecodable files fatal, but computed `unreadable` over the whole
+  repository instead of the selected scope — so a single GBK file anywhere made
+  the gate unusable on exactly the legacy codebases this standard targets. The
+  scope is now narrowed the same way the report is, keeping "selected but
+  unreadable is fatal".
+- **`--update` could delete the only copy of the installation.** It removed the
+  target before renaming the staged copy into place; a failure between the two
+  (process killed, antivirus holding a handle, power loss) left nothing. The old
+  install is now moved aside as `.previous` and only deleted once the swap
+  succeeds, with rollback on failure.
+- A plain install (no `--update`) merged instead of replacing, so re-running it
+  left files that upstream had deleted in place. Both paths now replace.
+- `check_comments.py --staged` no longer claims "no checkable files" when it did
+  check files and simply found nothing.
+
 ## 1.3.2
 
 ### Fixed

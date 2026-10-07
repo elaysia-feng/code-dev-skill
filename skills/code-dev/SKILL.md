@@ -76,7 +76,10 @@ After changing Java/Python files:
 
 ```sh
 python <skill-dir>/scripts/check_comments.py <changed-files>
+python <skill-dir>/scripts/check_comments.py --staged   # 检查 Git 暂存区内容
 ```
+
+Use `--staged` when the working tree and the index differ — it reads what would actually be committed, not what happens to be on disk.
 
 Exit codes: `0` means no ERROR (a WARNING may still be present); `1` means an ERROR exists; `2` means no checkable file was matched (**which does not mean there is no problem**). This checker does not cover TypeScript, and every WARNING requires human judgement.
 

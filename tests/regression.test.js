@@ -452,6 +452,64 @@ test('hook 同时跑两个检查器：注释 ERROR 与非 UTF-8 都会阻断', t
   assert.match(out.stdout, /UNREADABLE|read-error/, out.stdout);
 });
 
+test('提交门禁读索引：暂存违规而工作区干净仍必须阻断', t => {
+  const bash = process.env.READABILITY_BASH || (process.platform === 'win32'
+    ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
+  const hook = path.join(root, 'skills/code-dev/scripts/pre-commit-check.sh');
+  const run = cwd => spawnSync(bash, [hook], {
+    cwd, encoding: 'utf8',
+    env: { ...process.env, READABILITY_PYTHON: python, READABILITY_FAIL_ON: 'none' },
+  });
+  const clean = 'public class P {\n    void run() {}\n}\n';
+  const bad = 'public class P {\n    // TODO: no owner\n    void run() {}\n}\n';
+  const seed = dir => {
+    write(dir, 'P.java', clean);
+    git(dir, 'init', '-q');
+    git(dir, 'add', '.');
+    git(dir, '-c', 'user.name=T', '-c', 'user.email=t@e.invalid', 'commit', '-qm', 'base');
+  };
+
+  // 场景一：暂存违规内容，再把工作区改回干净 —— 最常见的绕过方式
+  const bypass = workspace(t);
+  seed(bypass);
+  write(bypass, 'P.java', bad);
+  git(bypass, 'add', 'P.java');
+  write(bypass, 'P.java', clean);
+  let out = run(bypass);
+  assert.equal(out.status, 1,
+    `索引违规必须阻断（工作区干净不算数）:\n${out.stdout}${out.stderr}`);
+  assert.match(out.stdout, /todo-no-owner/, out.stdout);
+
+  // 场景二：索引干净、工作区仍在编辑 —— 干净的提交不应被误拦
+  const editing = workspace(t);
+  seed(editing);
+  write(editing, 'P.java', bad);   // 只改工作区，不暂存
+  out = run(editing);
+  assert.equal(out.status, 0,
+    `索引干净时不应误拦:\n${out.stdout}${out.stderr}`);
+});
+
+test('范围外的非 UTF-8 文件不阻断无关的提交', t => {
+  const dir = workspace(t);
+  // 仓库里已提交一个 GBK 老文件，只暂存一个完全干净的新文件
+  const encoded = spawnSync(python, ['-c',
+    "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes('// 中文\\npublic class Legacy {}\\n'.encode('gbk'))",
+    path.join(dir, 'Legacy.java')], { encoding: 'utf8' });
+  assert.equal(encoded.status, 0, encoded.stderr);
+  git(dir, 'init', '-q');
+  git(dir, 'add', '.');
+  git(dir, '-c', 'user.name=T', '-c', 'user.email=t@e.invalid', 'commit', '-qm', 'base');
+
+  write(dir, 'Clean.java', 'public class Clean { }\n');
+  git(dir, 'add', 'Clean.java');
+
+  const smell = scan(dir, '--staged', '--json');
+  const report = JSON.parse(smell.stdout);
+  assert.deepEqual(report.unreadable, [],
+    `未暂存的 GBK 文件不应出现在 unreadable 里:\n${smell.stdout}`);
+  assert.equal(smell.status, 0, '未暂存的历史 GBK 文件不应阻断提交');
+});
+
 test('Git Bash hook 实际调用检查器并传递严重程度阈值', t => {
   const dir = workspace(t);
   git(dir, 'init', '-q');

@@ -31,7 +31,7 @@ Responsibilities:
 - `controller/` — HTTP boundary: parse/validate request, call service contract, return response.
 - `dto/request/` — incoming API models.
 - `dto/response/` — outgoing API models.
-- `service/` / `services/` — business contracts; implementations live in `impl/`.
+- `service/` — business contracts; implementations live in `impl/`.
 - `mapper/` — persistence access when using MyBatis/MyBatis-Plus style mappers.
 - `entity/` — persistence models.
 - `config/` — framework/infrastructure configuration.

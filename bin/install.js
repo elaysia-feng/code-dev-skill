@@ -176,20 +176,42 @@ function replaceSkillDir(freshSkill, target, force) {
   const shipped = new Set(listFiles(freshSkill));
   const stale = listFiles(target).filter(rel => !shipped.has(rel));
 
-  // 1. 把新内容暂存到同级目录，复制失败时旧安装仍然完好
+  // 1. 先把新内容复制到同级暂存目录并校验，此时旧安装完全没被碰过
   const staging = target + '.incoming';
+  const backup = target + '.previous';
   fs.rmSync(staging, { recursive: true, force: true });
+  fs.rmSync(backup, { recursive: true, force: true });
+  let movedAway = false;
   try {
     copyDir(freshSkill, staging);
     const stagedMarker = fs.readFileSync(path.join(staging, 'SKILL.md'));
     if (!stagedMarker.equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
       throw new Error('Staged skill verification failed before swap');
     }
-    // 2. 校验通过后才切换，同盘 rename 是原子操作
-    fs.rmSync(target, { recursive: true, force: true });
+    // 2. 把旧安装改名让位，而不是删除。Windows 上 rename 不能覆盖已存在的
+    //    目录，所以"删了再 rename"在两者之间留了一个真实窗口：进程被杀、
+    //    杀软占用、断电，都会让技能被完整删除且无从恢复。改名让位则把
+    //    旧内容留到切换成功为止。
+    if (fs.existsSync(target)) {
+      fs.renameSync(target, backup);
+      movedAway = true;
+    }
     fs.renameSync(staging, target);
+    if (movedAway) {
+      fs.rmSync(backup, { recursive: true, force: true });
+    }
   } catch (error) {
     fs.rmSync(staging, { recursive: true, force: true });
+    // 切换失败就把旧安装放回去，不能让用户落到"完全没有技能"的状态
+    if (movedAway && !fs.existsSync(target) && fs.existsSync(backup)) {
+      try {
+        fs.renameSync(backup, target);
+      } catch (restoreError) {
+        console.error('WARNING: could not restore the previous installation from ' +
+          backup + ': ' + restoreError.message);
+        throw error;
+      }
+    }
     throw error;
   }
 
@@ -288,7 +310,9 @@ function main() {
   const target = resolveTarget();
   console.log(`Installing "${SKILL_NAME}"...`);
 
-  copyDir(skillSrc, target);
+  // 同样是整体替换：重装一次不应该把上游已经删掉的文件留在原地。
+  // 首次安装（目标不存在或不是技能目录）时 replaceSkillDir 退化为普通复制。
+  replaceSkillDir(skillSrc, target, args.includes('--force'));
 
   console.log(`Installed to: ${target}`);
   console.log('');
