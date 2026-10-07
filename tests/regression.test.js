@@ -392,6 +392,31 @@ test('更新中途失败时保留旧的完整安装', t => {
   assert.equal(fs.existsSync(target + '.incoming'), false, '暂存目录必须被清理');
 });
 
+test('非 UTF-8 源文件被两个检查器一致拒绝，且提示可执行', t => {
+  const dir = workspace(t);
+  write(dir, 'ok.py', 'value = 1\n');
+  // 用 Python 写入 GBK 字节：合法源文件，但不符合 UTF-8 强制要求
+  const gbk = spawnSync(python, ['-c',
+    "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes('# 中文\\ndef run():\\n    return 1\\n'.encode('gbk'))",
+    path.join(dir, 'legacy.py')], { encoding: 'utf8' });
+  assert.equal(gbk.status, 0, gbk.stderr);
+
+  // 注释检查器：read-error，且退出码为 1
+  const comments = scanComments(dir);
+  assert.ok(comments.codes.includes('read-error'),
+    `注释检查器应报 read-error:\n${comments.output}`);
+  assert.equal(comments.status, 1, comments.output);
+
+  // 抽象检查器：列出 unreadable，退出码 2，且 count 仍只表示坏味道
+  const smell = scan(dir, '--lang', 'python', '--json');
+  const report = JSON.parse(smell.stdout);
+  assert.equal(report.count, 0, '坏味道数量不受影响');
+  assert.deepEqual(report.unreadable.map(u => u.file), ['legacy.py'],
+    `抽象检查器应列出无法解码的文件:\n${smell.stdout}`);
+  assert.match(report.unreadable[0].reason, /UTF-8/);
+  assert.equal(smell.status, 2, '无法解码时退出码应为 2');
+});
+
 test('Git Bash hook 实际调用检查器并传递严重程度阈值', t => {
   const dir = workspace(t);
   git(dir, 'init', '-q');

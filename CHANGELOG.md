@@ -4,6 +4,25 @@ All notable changes to this skill are recorded here. The version is kept in
 sync between `package.json` and `plugin.json`; a release is incomplete unless
 both are bumped.
 
+## 1.3.1
+
+Source encoding is now an explicit part of the standard rather than an
+unenforced side effect of the checkers.
+
+### Changed
+
+- **Source files must be UTF-8**, with or without a BOM. The standard required
+  this in practice but never said so, which left the checkers enforcing a rule
+  nobody had been told about.
+- Both checkers now treat a file they cannot decode as a failed check rather than
+  a clean one. `check-abstraction-smell.py` previously skipped such files
+  silently, so an agent could report "no problems" about a file it had never
+  read. It now lists them under `UNREADABLE` / `unreadable` and exits `2`.
+  `count` still means "number of smells", so existing consumers of the JSON are
+  unaffected.
+- The unreadable message says what to do (`re-save it as UTF-8`) instead of
+  reporting an opaque codec error.
+
 ## 1.3.0
 
 The standard became **mandatory** rather than advisory, and the documentation

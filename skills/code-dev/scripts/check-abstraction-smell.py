@@ -26,7 +26,10 @@ impl/，所以该布局本身就是合规结果，报警等于要求作者违反
 退出码：
   0 - 未达到阻断阈值（默认只报告）
   1 - 达到 --fail-on 指定的阻断阈值
-  2 - 执行检查时出错
+  2 - 存在无法按 UTF-8 解码的源文件，或执行检查时出错
+
+源文件一律使用 UTF-8。无法解码的文件会被列在 UNREADABLE / unreadable 中并
+让退出码变为 2 —— 它们根本没有进入分析，"没有报出坏味道"对它们不成立。
 """
 
 import argparse
@@ -853,7 +856,7 @@ def find_python_pass_through(root: Path, file_list: list[Path] | None = None) ->
 # 报告输出
 # ---------------------------------------------------------------------------
 
-def report_text(smells: list[dict]) -> str:
+def report_text(smells: list[dict], unreadable: list[dict] | None = None) -> str:
     """生成按严重程度分组的可读报告。
 
     Args:
@@ -862,35 +865,82 @@ def report_text(smells: list[dict]) -> str:
     Returns:
         用于终端输出的报告。
     """
-    if not smells:
-        return "No abstraction smells found. Code looks direct and readable.\n"
+    lines: list[str] = []
 
-    # 1. 先按严重程度归组，使阻断级别的发现优先可见。
-    lines = [f"Found {len(smells)} potential abstraction smell(s):\n"]
-    by_severity = defaultdict(list)
-    for s in smells:
-        by_severity[s["severity"]].append(s)
+    # 1. 无法解码的文件排在最前：它们根本没被检查，不是"没有问题"。
+    if unreadable:
+        lines.append(f"Could not read {len(unreadable)} file(s); they were NOT checked:\n")
+        for item in unreadable:
+            lines.append(f"  [UNREADABLE] {item['file']}: {item['reason']}")
+        lines.append("")
 
-    # 2. 保持各组内部顺序，方便人工对照同一次扫描结果。
-    for severity in ("warning", "info"):
-        items = by_severity.get(severity, [])
-        if items:
-            lines.append(f"  [{severity.upper()}]")
-            for item in items:
-                lines.append(f"    - {item['message']}")
+    # 2. 再按严重程度报告坏味道，使阻断级别的发现优先可见。
+    if smells:
+        lines.append(f"Found {len(smells)} potential abstraction smell(s):\n")
+        by_severity = defaultdict(list)
+        for s in smells:
+            by_severity[s["severity"]].append(s)
+        # 保持各组内部顺序，方便人工对照同一次扫描结果。
+        for severity in ("warning", "info"):
+            items = by_severity.get(severity, [])
+            if items:
+                lines.append(f"  [{severity.upper()}]")
+                for item in items:
+                    lines.append(f"    - {item['message']}")
+    elif not unreadable:
+        lines.append("No abstraction smells found. Code looks direct and readable.")
     return "\n".join(lines) + "\n"
 
 
-def report_json(smells: list[dict]) -> str:
+def report_json(smells: list[dict], unreadable: list[dict] | None = None) -> str:
     """生成包含问题列表与数量的 JSON。
+
+    ``count`` 仍然只表示坏味道的数量；无法解码的文件单独放在
+    ``unreadable`` 里，因为它们不是坏味道，而是检查本身没能完成。
 
     Args:
         smells: 检查器发现的问题。
+        unreadable: 因不是 UTF-8 而无法检查的源文件。
 
     Returns:
         JSON 字符串。
     """
-    return json.dumps({"smells": smells, "count": len(smells)}, indent=2)
+    return json.dumps({
+        "smells": smells,
+        "count": len(smells),
+        "unreadable": unreadable or [],
+    }, indent=2)
+
+
+def find_unreadable(files: list[Path], root: Path) -> list[dict]:
+    """找出无法按 UTF-8 解码的源文件。
+
+    规范要求源文件一律使用 UTF-8。静默跳过会让调用方以为这个文件检查过了，
+    而它其实从未进入分析 —— 与 check_comments.py 的 read-error 保持一致，
+    这里同样把它当作一次失败的检查而不是"没有问题"。
+
+    Args:
+        files: 待检查的源文件列表。
+        root: 计算相对路径用的根目录。
+
+    Returns:
+        每项含 ``file`` 与 ``reason``；全部可解码时返回空列表。
+    """
+    out: list[dict] = []
+    for f in files:
+        try:
+            f.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError as exc:
+            out.append({
+                "file": str(f.relative_to(root)),
+                "reason": f"not UTF-8 ({exc.reason} at byte {exc.start}); re-save it as UTF-8",
+            })
+        except OSError as exc:
+            out.append({
+                "file": str(f.relative_to(root)),
+                "reason": f"cannot read ({exc.strerror or exc})",
+            })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -905,12 +955,18 @@ def _related(smell: dict, selected: set[str]) -> bool:
     return any(Path(p).as_posix() in selected for p in paths if p)
 
 
-def _scan(root: Path, args, selected: set[str] | None) -> list[dict]:
-    """读取选定语言的完整上下文后限制报告范围。"""
+def _scan(root: Path, args, selected: set[str] | None) -> tuple[list[dict], list[dict]]:
+    """读取选定语言的完整上下文后限制报告范围。
+
+    Returns:
+        ``(坏味道, 无法解码的文件)``。后者单独返回是因为"没检查"和
+        "检查后没发现问题"对调用方是完全不同的两件事。
+    """
     # 1. 跨文件关系必须读取全部实现，避免将未修改的实现误判为不存在。
     java = _rglob_filtered(root, "*.java") if args.lang != "python" else []
     python = _rglob_filtered(root, "*.py") if args.lang != "java" else []
     language_files = {p.relative_to(root).as_posix() for p in java + python}
+    unreadable = find_unreadable(java + python, root)
     smells = [s for s in find_suspect_packages(root, args.min_package_files)
               if _related(s, language_files)]
     smells.extend(find_deep_inheritance(root, args.max_depth, java, python))
@@ -921,7 +977,7 @@ def _scan(root: Path, args, selected: set[str] | None) -> list[dict]:
         smells.extend(find_python_abc_smell(root, python))
         smells.extend(find_python_pass_through(root, python))
     # 2. 报告仅涉及本次选择的文件，保留完整分析产生的跨文件关系。
-    return smells if selected is None else [s for s in smells if _related(s, selected)]
+    return (smells if selected is None else [s for s in smells if _related(s, selected)], unreadable)
 
 
 def _git(root: Path, *args: str) -> bytes:
@@ -985,7 +1041,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="readability-index-") as temp:
             snapshot = Path(temp)
             selected = _snapshot_index(root, snapshot)
-            smells = _scan(snapshot, args, selected)
+            smells, unreadable = _scan(snapshot, args, selected)
     else:
         selected = None
         if args.files is not None:
@@ -998,13 +1054,15 @@ def main():
                 if not candidate.is_relative_to(root) or not candidate.is_file():
                     parser.error(f"Invalid source path: {line}")
                 selected.add(candidate.relative_to(root).as_posix())
-        smells = _scan(root, args, selected)
+        smells, unreadable = _scan(root, args, selected)
 
     # 3. 输出与退出策略分开，info 不会触发 warning 级阻断。
-    print(report_json(smells) if args.json else report_text(smells))
+    print(report_json(smells, unreadable) if args.json else report_text(smells, unreadable))
     blocked = args.fail_on != "none" and any(
         args.fail_on == "info" or s["severity"] == "warning" for s in smells)
-    sys.exit(1 if blocked else 0)
+    # 无法解码的文件一律失败：它们根本没被检查，不能算"没有问题"。
+    # 与 check_comments.py 的 read-error 保持同一口径。
+    sys.exit(2 if unreadable else (1 if blocked else 0))
 
 
 if __name__ == "__main__":

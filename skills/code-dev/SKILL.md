@@ -29,6 +29,7 @@ These must be enforced for implementation, review and refactoring:
 - **Project structure must follow [`references/project-structure.md`](references/project-structure.md)**, and must not be compromised to match the project's current state. When the structure does not comply, change the structure.
 - **Java business components must always be `interface + impl/`**; a single implementation is not a reason to skip the interface.
 - **Comments must always be in Simplified Chinese**; projects that use English comments must be rewritten the same way. Multi-stage methods must mark their steps with hierarchical numbering such as `1.` and `1.1`.
+- **Source files must always be UTF-8**, with or without a BOM. Neither checker can analyse a file it cannot decode, so a non-UTF-8 source file is reported and rejected rather than quietly passed over.
 - **Do not add** shared methods, base classes, shared modules or extra layers merely to reduce the number of duplicated lines.
 - Extract a structure only when one of the following holds: the user explicitly asked for it, a stable shared rule exists, there is a clear extension point, or there is a framework boundary. The project's pre-existing architecture does not qualify.
 - Read the relevant modules, call relationships and existing patterns before you start — reading them is for judging the blast radius, not for carrying on with the existing style.
@@ -78,6 +79,8 @@ python <skill-dir>/scripts/check_comments.py <changed-files>
 ```
 
 Exit codes: `0` means no ERROR (a WARNING may still be present); `1` means an ERROR exists; `2` means no checkable file was matched (**which does not mean there is no problem**). This checker does not cover TypeScript, and every WARNING requires human judgement.
+
+`check-abstraction-smell.py` exits `0` below the threshold, `1` when `--fail-on` is reached, and `2` when a source file cannot be decoded.
 
 Optional git hook: merge `scripts/pre-commit-check.sh` into the existing hook, do not overwrite it. It does not block by default; it only blocks on WARNING-level issues when `READABILITY_FAIL_ON=warning` is set.
 
