@@ -6,10 +6,15 @@
 客观可验证的部分：
 
 - public 方法/函数缺少 Javadoc / Docstring          -> WARNING
+- 注释为纯英文，规范要求简体中文                     -> WARNING
 - TODO 未标注负责人                                 -> ERROR
 - 有参数但文档缺 @param / Args:                      -> WARNING
 - 有返回值但文档缺 @return / Returns:                -> WARNING
-- 复杂方法缺少主要步骤编号 / 需要人工复核可读性        -> WARNING
+- 复杂方法缺少主要步骤编号                              -> WARNING
+
+规则全部可被修复：没有规则会因为"方法本身就复杂"而永远触发。早期版本有一条
+``review-complexity`` 对每个超长方法无条件报警，但它既不指出问题也不给出改法，
+只会训练使用者忽略输出，因此已移除。
 
 用法::
 
@@ -21,8 +26,12 @@
     1  存在 ERROR
     2  没有任何可检查的文件（targets 没匹配到 .java / .py）
 
-这是启发式检查而非完整语法分析，Java 部分对复杂泛型、内部类等场景可能误判，
-结果仅作自查辅助。
+ERROR 只出现在两类情况：文件无法解析或无法读取（工具故障），以及 TODO 缺少
+负责人。前者是真正需要停下修的；后者是规范的硬性要求，处理办法是在同一文件内
+把 ``TODO`` 补成 ``TODO(负责人): 说明``，负责人未知时写"待确认"，不要删掉
+待办本身。WARNING 一律需要人工判断，不能证明注释语义正确。
+
+这是启发式检查而非完整语法分析，Java 部分对复杂泛型、内部类等场景可能误判。
 """
 
 import argparse
@@ -41,9 +50,61 @@ WARNING = "WARNING"
 #: 步骤编号注释，如 ``// 1. 参数校验`` 或 ``# 1.1 校验手机号``
 STEP_COMMENT_RE = re.compile(r"^\s*(?://|#)\s*\d+(?:\.\d+)*[.、．]?\s+\S")
 
-#: 区分待办标记与完整格式；括号、负责人、冒号和说明均须存在。
-TODO_RE = re.compile(r"\btodo\b", re.IGNORECASE)
-TODO_FORMAT_RE = re.compile(r"TODO\s*\([^()\r\n]*[^()\s][^()\r\n]*\)\s*:\s*\S", re.IGNORECASE)
+#: 待办标记必须出现在注释开头才算数；句中提到 TODO 只是说明文字。
+#: 一并覆盖 TODO / FIXME / XXX，早期版本只查 TODO 会让 FIXME 全部漏报。
+#: 前缀容忍 ``#``、``//``、Javadoc 的 ``*``，以及列表符号。
+_MARK_START = r"^\s*(?:(?:#+|//+)\s*|\*\s*)?(?:[-*+]\s+)?"
+#: `XXX-1` 不是待办标记（`-` 会形成词边界），要求标记后不是标识符字符。
+TODO_RE = re.compile(_MARK_START + r"(?:TODO|FIXME|XXX)(?![\w-])", re.IGNORECASE)
+TODO_FORMAT_RE = re.compile(
+    _MARK_START + r"(?:TODO|FIXME|XXX)\s*\([^()\r\n]*[^()\s][^()\r\n]*\)\s*:\s*\S",
+    re.IGNORECASE,
+)
+
+#: 注释语言检查：规范要求注释一律简体中文，此处只提示疑似英文注释。
+CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+ENGLISH_WORD_RE = re.compile(r"[A-Za-z]{2,}")
+#: 至少这么多个英文词且完全没有中文，才判为疑似英文注释。
+ENGLISH_WORD_THRESHOLD = 3
+COMMENT_PREFIX_RE = re.compile(r"^(?:#+|//+)\s*")
+
+# 下面三段共同构成"保持原文"的样板判定。**全部按行首锚定**：
+# 早期版本用子串匹配，结果 "This returns the copyright owner" 这类真英文散文
+# 只要句中出现 copyright 就被放过，漏报率取决于用词，行为不可预测。
+# 行首锚定之后，"样板"和"散文"才真正分得开。
+
+#: 行首即表明这是样板而非说明：代码生成器头、许可证与版权头。
+_BOILERPLATE_START = (
+    r"copyright\b|licensed\s+under\b|spdx-license-identifier\b"
+    r"|code\s+generated\b|generated\s+by\b|auto-?generated\b|do\s+not\s+edit\b"
+    r"|prettier-ignore\b|eslint-disable\b|spotless\b|editorconfig\b"
+)
+#: 行首是工具名 + 分隔符（冒号或等号），如 `type: ignore`、`noqa: E501`。
+#: 要求分隔符是必要的：否则英文句 "Type of the value" 会命中裸词 `type`。
+_TOOL_PRAGMA_SEPARATED = (
+    r"(?:noqa|pylint|flake8|mypy|pyright|ruff|isort|yapf|black|fmt"
+    r"|type|pragma|cov|coverage|pmd|spotbugs|nosonar|eslint|prettier"
+    r"|spotless|editorconfig|checkstyle|shellcheck|rubocop|istanbul)"
+    r"\s*[:=]\s*\S"
+)
+#: 行首是工具名 + 指令关键字，中间无分隔符，如 `istanbul ignore next`。
+_TOOL_PRAGMA_WORDS = (
+    r"(?:istanbul|shellcheck|checkstyle|prettier|eslint|spotless)"
+    r"\s+(?:ignore|disable|off|on|enable|suppression|check)\b"
+)
+#: Javadoc 标签与行内标签。
+_JAVADOC_TAG = (
+    r"@author\b|@see\b|@since\b|@link\b|@code\b|@literal\b|@value\b"
+    r"|\{@(?:link|code|literal|value)\b"
+)
+
+LINE_START_EXEMPT_RE = re.compile(
+    r"^\W*(?:" + _BOILERPLATE_START + "|" + _TOOL_PRAGMA_SEPARATED
+    + "|" + _TOOL_PRAGMA_WORDS + "|" + _JAVADOC_TAG + ")",
+    re.IGNORECASE,
+)
+#: 整行只有一个 URL 的注释是索引提示，不是需要翻译的说明文字。
+URL_ONLY_RE = re.compile(r"^(?:https?://|www\.)\S+$", re.IGNORECASE)
 
 #: 复杂方法判定阈值
 COMPLEX_LINE_THRESHOLD = 20
@@ -120,14 +181,79 @@ def check_todo(path: Path, comment_view: List[str]) -> List[Issue]:
         无负责人待办标记的 ERROR 列表。
     """
     issues: List[Issue] = []
+    # 1. 只扫描注释视图，避免把字符串常量或 docstring 里的字样误判成待办标记
     for lineno, line in enumerate(comment_view, start=1):
-        for match in TODO_RE.finditer(line):
-            if TODO_FORMAT_RE.match(line, match.start()):
-                continue
-            issues.append(Issue(
-                path, lineno, ERROR, "todo-no-owner",
-                "待办格式不完整，应写成 TODO(负责人): 说明，负责人和说明不能为空",
-            ))
+        stripped = line.strip()
+        # 2. 标记不在注释开头就是说明文字而不是待办，不报错
+        if not TODO_RE.match(stripped):
+            continue
+        # 3. 符合 标记(负责人): 说明 的格式，跳过
+        if TODO_FORMAT_RE.match(stripped):
+            continue
+        # 4. 缺负责人或缺说明，按 ERROR 上报，由调用方补全而不是删掉待办
+        issues.append(Issue(
+            path, lineno, ERROR, "todo-no-owner",
+            "待办格式不完整，应写成 TODO(负责人): 说明，负责人和说明不能为空",
+        ))
+    return issues
+
+
+def is_tool_directive(text: str) -> bool:
+    """判断一行注释是否不属于语言检查的管辖范围。
+
+    覆盖四类：给工具看的指令（shebang、编码声明、linter / type checker /
+    覆盖率工具的 pragma）、必须保持原文的样板注释（代码生成器头、许可证头、
+    Javadoc 标签与 {@link} 之类行内标签）、以及整行 URL 索引。
+
+    全部按行首匹配：样板头和工具指令都出现在行首，而英文说明文字不会。
+
+    Args:
+        text: 单行注释文本，可带 ``#`` 或 ``//`` 前缀。
+
+    Returns:
+        属于上述任一情况时返回 True。
+    """
+    stripped = COMMENT_PREFIX_RE.sub("", text.strip()).strip()
+    # 1. shebang 与编码声明
+    if stripped.startswith(("!", "-*-")):
+        return True
+    # 2. 整行 URL
+    if URL_ONLY_RE.match(stripped):
+        return True
+    # 3. 行首样板 / 工具指令
+    return bool(LINE_START_EXEMPT_RE.match(stripped))
+
+
+def check_comment_language(path: Path, entries: Iterable[Tuple[int, str]]) -> List[Issue]:
+    """检查注释是否写成简体中文。
+
+    只在**完全没有中文**且英文词数量达到阈值时提示，因此保留英文标识符、
+    框架名和协议名的正常中文注释不会命中。工具指令与纯 URL 等边界情况按
+    启发式交给人工判断。
+
+    Args:
+        path: 文件路径，仅用于生成问题报告。
+        entries: ``(行号, 注释文本)`` 序列，行号为 1 起始。
+
+    Returns:
+        疑似非简体中文注释的 WARNING 列表。
+    """
+    issues: List[Issue] = []
+    for lineno, text in entries:
+        stripped = text.strip()
+        # 1. 空行、已含中文、以及工具指令都不属于本规则要管的范围
+        #    含中文即放行，保证保留英文标识符、框架名、协议名的中文注释不会被误判
+        if not stripped or CJK_RE.search(stripped):
+            continue
+        if is_tool_directive(stripped):
+            continue
+        # 2. 英文词数量不足时不足以判定为整句英文，宁可漏报
+        if len(ENGLISH_WORD_RE.findall(stripped)) < ENGLISH_WORD_THRESHOLD:
+            continue
+        issues.append(Issue(
+            path, lineno, WARNING, "non-chinese-comment",
+            "注释为纯英文，规范要求注释一律使用简体中文",
+        ))
     return issues
 
 
@@ -180,8 +306,50 @@ def check_python_file(path: Path, source: str) -> List[Issue]:
         issues.extend(_check_python_node(path, node, kind, lines))
 
     # 3. 追加与语言无关的待办标记检查
-    issues.extend(check_todo(path, _python_comment_view(source, len(lines))))
+    comment_view = _python_comment_view(source, len(lines))
+    issues.extend(check_todo(path, comment_view))
+
+    # 4. 注释语言检查：行注释与 docstring 一并检查
+    issues.extend(check_comment_language(path, _comment_entries(comment_view)))
+    issues.extend(check_comment_language(path, _docstring_entries(tree)))
     return issues
+
+
+def _comment_entries(comment_view: List[str]) -> Iterator[Tuple[int, str]]:
+    """把仅注释视图转成 ``(行号, 文本)`` 序列。
+
+    Args:
+        comment_view: 与源文件等长的"仅注释"行列表。
+
+    Yields:
+        非空注释行及其 1 起始行号。
+    """
+    for index, text in enumerate(comment_view, start=1):
+        if text.strip():
+            yield index, text
+
+
+def _docstring_entries(tree: ast.AST) -> Iterator[Tuple[int, str]]:
+    """收集 AST 中所有 docstring 的 ``(行号, 文本)``。
+
+    Args:
+        tree: 已解析的模块 AST。
+
+    Yields:
+        每个 docstring 的起始行号与全文。
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef,
+                                 ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        doc = ast.get_docstring(node)
+        if doc:
+            # 用字符串常量自身的行号，而不是 def/class 行，定位更准确
+            body = getattr(node, "body", None)
+            first = body[0] if body else None
+            value = getattr(first, "value", None)
+            lineno = getattr(value, "lineno", None) or getattr(node, "lineno", 1)
+            yield lineno, doc
 
 
 def _python_comment_view(source: str, line_count: int) -> List[str]:
@@ -272,14 +440,11 @@ def _check_python_node(path: Path, node: ast.AST, kind: str,
         issues.append(Issue(path, line, WARNING, "missing-returns",
                             f"`{name}` 有返回值但 docstring 缺少 Returns: 小节"))
 
-    # 4. 复杂方法缺少阶段编号时提示人工补充，并复核业务约束是否清楚
-    if _is_complex_python(node):
-        end_line = getattr(node, "end_lineno", line)
-        if not has_step_comments(lines, line, end_line):
-            issues.append(Issue(path, line, WARNING, "missing-step-comments",
-                                f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
-        issues.append(Issue(path, line, WARNING, "review-complexity",
-                            f"`{name}` 流程较复杂，请复核步骤编号和业务约束是否清楚"))
+    # 4. 复杂方法缺少阶段编号时提示人工补充
+    if _is_complex_python(node) and not has_step_comments(
+            lines, line, getattr(node, "end_lineno", line)):
+        issues.append(Issue(path, line, WARNING, "missing-step-comments",
+                            f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
     return issues
 
 
@@ -449,6 +614,9 @@ def check_java_file(path: Path, source: str) -> List[Issue]:
 
     # 3. 追加与语言无关的待办标记检查
     issues.extend(check_todo(path, comments))
+
+    # 4. 注释语言检查
+    issues.extend(check_comment_language(path, _comment_entries(comments)))
     return issues
 
 
@@ -637,16 +805,14 @@ def _check_java_method(path: Path, match: "re.Match[str]", index: int,
         issues.append(Issue(path, lineno, WARNING, "missing-return",
                             f"`{name}` 有返回值但 Javadoc 缺少 @return"))
 
-    # 3. 复杂方法缺少阶段编号时提示人工补充，抽象或接口方法没有方法体时跳过
+    # 3. 复杂方法缺少阶段编号时提示人工补充；抽象或接口方法没有方法体时跳过
     body = _find_java_body(code, index)
     if body is not None:
         start, end = body
-        if _is_complex_java(code, start, end):
-            if not has_step_comments(lines, start + 1, end + 1):
-                issues.append(Issue(path, lineno, WARNING, "missing-step-comments",
-                                    f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
-            issues.append(Issue(path, lineno, WARNING, "review-complexity",
-                                f"`{name}` 流程较复杂，请复核步骤编号和业务约束是否清楚"))
+        if _is_complex_java(code, start, end) and not has_step_comments(
+                lines, start + 1, end + 1):
+            issues.append(Issue(path, lineno, WARNING, "missing-step-comments",
+                                f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
     return issues
 
 
@@ -865,8 +1031,10 @@ def check_file(path: Path) -> List[Issue]:
         该文件的问题列表；读取失败时返回一条 ERROR。
     """
     # 1. 读取源码，编码或权限问题直接作为 ERROR 上报
+    # 1.1 用 utf-8-sig：它同时接受带 BOM 和不带 BOM 的 UTF-8，
+    # 而 BOM 保留下来会让 ast.parse 报 "invalid non-printable character U+FEFF"
     try:
-        source = path.read_text(encoding="utf-8")
+        source = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as exc:
         return [Issue(path, 1, ERROR, "read-error", f"无法读取文件: {exc}")]
 
