@@ -104,3 +104,43 @@ npm pack --dry-run --ignore-scripts         # inspect the actual published conte
 ```sh
 READABILITY_PYTHON=$(py -3 -c "import sys; print(sys.executable)") npm test
 ```
+
+## Releasing
+
+Both `package.json` and `plugin.json` carry the version, and nothing keeps them
+in sync automatically — bump both or `--check` will tell every user they are
+already up to date while they are still running the broken version.
+
+1. Bump the version in `package.json` **and** `plugin.json`.
+2. Add a `CHANGELOG.md` entry.
+3. Run the validation gate above, plus the two checkers against this repository's
+   own scripts (they must report 0 ERROR / 0 WARNING):
+
+   ```sh
+   py -3 skills/code-dev/scripts/check_comments.py skills/code-dev/scripts/
+   py -3 skills/code-dev/scripts/check-abstraction-smell.py . --lang auto
+   ```
+
+4. Commit, tag, and push:
+
+   ```sh
+   git push origin main
+   git tag -a v1.3.0 -m "..." && git push origin v1.3.0
+   ```
+
+5. **Verify the published artifact**, not just the local tree. A version that
+   only works locally is worse than no release, because `--check` reports it as
+   current to everyone else:
+
+   ```sh
+   npm install github:elaysia-feng/code-dev-skill --ignore-scripts
+   node node_modules/readability-first-coding/bin/install.js --check
+   ```
+
+### Avoiding conflicts between releases
+
+- `git fetch` before committing; this repository publishes from `main`, so a
+  local commit made against a stale remote is the usual source of a rejected push.
+- Tag releases as annotated tags (`git tag -a`) so the message is preserved.
+- The npm package version is checked against the version in `package.json` on
+  `main` — bump it in the same commit, or the update check will never fire.
