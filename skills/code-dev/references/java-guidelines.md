@@ -2,6 +2,29 @@
 
 These are **mandatory** rules for Java/Spring backend work. They apply regardless of what the target project currently looks like — a project that does not follow them gets changed to follow them, not exempted from this file. A project covered by a company standard is governed by that standard instead; see the precedence rules in [`../SKILL.md`](../SKILL.md).
 
+## Conditional branch braces
+
+Every `if`, `else if` and `else` branch body **must** use braces `{}`, regardless of statement count or line breaks. Guard clauses and early returns are not exempt. A normal `else if (...) { ... }` chain is allowed; each conditional body still requires braces.
+
+Both of these forms are prohibited:
+
+```java
+if (!authorized(authorization)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+if (!authorized(authorization))
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+```
+
+Required form:
+
+```java
+if (!authorized(authorization)) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+}
+```
+
+During implementation and refactoring, enforce this rule in the code being changed. During review, report unbraced branch bodies as mandatory violations. The existing checkers do not check this rule, so inspect branch bodies explicitly.
+
 ## Business interface rule
 
 Before creating business code, identify the project shape.
