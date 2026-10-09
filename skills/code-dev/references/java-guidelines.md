@@ -1,6 +1,6 @@
 # Java Guidelines
 
-These are **mandatory** rules for Java/Spring backend work. They apply regardless of what the target project currently looks like — a project that does not follow them gets changed to follow them, not exempted from this file. A project covered by a company standard is governed by that standard instead; see the precedence rules in [`../SKILL.md`](../SKILL.md).
+本文适用于 Java/Spring 后端。新增代码遵循本规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
 
 ## Business interface rule
 
@@ -49,7 +49,7 @@ com.example.order/
 └── entity/
 ```
 
-Use the singular package name (`service/`, `mapper/`, `entity/`) as shown above. A project currently using `services/` gets migrated to `service/`; both are not left in place.
+新增包使用上述单数名称（`service/`、`mapper/`、`entity/`）。既有 `services/` 仅在用户同意全量迁移后改为 `service/`；不同意时保留已有包及其调用关系。
 
 ### Required conventions
 
@@ -174,7 +174,7 @@ when `OrderServiceDelegate` only forwards the call.
 
 ## Inheritance
 
-Prefer composition or concrete implementation classes when inheritance only saves boilerplate. Flatten project-owned hierarchies deeper than two levels: replace them with composition unless the hierarchy itself is the domain contract the code is expressing.
+Prefer composition or concrete implementation classes when inheritance only saves boilerplate. 既有多层继承的调整受入口中的迁移选择约束；用户同意迁移时，优先用组合替换仅为节省样板代码的层次，保留承载真实领域契约的继承。
 
 ## New layers and patterns
 

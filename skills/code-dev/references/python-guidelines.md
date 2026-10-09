@@ -1,6 +1,6 @@
 # Python Guidelines
 
-Target context: Python backend, especially **FastAPI + LangGraph**. These are **mandatory** rules and apply regardless of what the target project currently looks like — a project that does not follow them is changed, not exempted. A project governed by a company standard follows that standard instead; see the precedence rules in [`../SKILL.md`](../SKILL.md).
+适用场景：Python 后端，尤其是 **FastAPI + LangGraph**。新增代码遵循本规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
 
 Structure is defined in [`project-structure.md`](project-structure.md) and is mandatory there too.
 
@@ -56,13 +56,15 @@ class OrderService:
 
         order.status = "CANCELLED"
         self.session.add(order)
-        self.session.commit()
+        self.session.flush()  # 事务提交由公开业务入口统一管理。
         return order
 ```
 
 Do not create an ABC/Protocol solely because there is one implementation.
 
-Do not introduce a new `repositories/` layer — it is not part of the mandatory layout. If the project already has repositories, services **must** use that boundary, because two competing data-access paths are worse than either one alone.
+小项目的简单查询可以直接写在 service 中。出现复用查询、复杂持久化规则、存储替换或隔离测试边界时，可引入 `repositories/`；不为单次 CRUD 添加纯转发层。已有 repository 时必须复用它，不能建立并行数据访问路径。
+
+事务由公开业务入口统一管理；参与同一操作的 service/repository 不各自提交。查询通常无需额外事务包装；避免在事务中等待 LLM、网络调用等慢操作。提交、回滚和资源释放采用项目所用数据库库的机制，并验证失败时能正确回滚。
 
 ## Pydantic schemas
 
@@ -244,7 +246,7 @@ Avoid proactive:
 - generic `common/`, `utils/`, `helpers/` packages
 - custom DI containers
 - pass-through manager/service layers
-- repository layers that the project does not already use
+- repository layers without a concrete persistence boundary
 
 ## `__init__.py`
 

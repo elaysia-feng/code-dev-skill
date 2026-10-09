@@ -11,6 +11,7 @@
 - 有参数但文档缺 @param / Args:                      -> WARNING
 - 有返回值但文档缺 @return / Returns:                -> WARNING
 - 复杂方法缺少主要步骤编号                              -> WARNING
+- 步骤编号重复、跳号或缺少父步骤                        -> WARNING
 
 规则全部可被修复：没有规则会因为"方法本身就复杂"而永远触发。早期版本有一条
 ``review-complexity`` 对每个超长方法无条件报警，但它既不指出问题也不给出改法，
@@ -18,12 +19,12 @@
 
 用法::
 
-    python3 check_comments.py <文件或目录> [<文件或目录> ...]
+    python3 check_comments.py <文件或目录> [<文件或目录> ...] --fail-on warning
 
 退出码::
 
-    0  没有 ERROR（可能仍有 WARNING）
-    1  存在 ERROR
+    0  未达到阻断阈值（默认模式可能仍有 WARNING）
+    1  存在 ERROR，或 --fail-on warning 时存在 WARNING
     2  没有任何可检查的文件（targets 没匹配到 .java / .py）
 
 ERROR 只出现在两类情况：文件无法解析或无法读取（工具故障），以及 TODO 缺少
@@ -49,7 +50,7 @@ ERROR = "ERROR"
 WARNING = "WARNING"
 
 #: 步骤编号注释，如 ``// 1. 参数校验`` 或 ``# 1.1 校验手机号``
-STEP_COMMENT_RE = re.compile(r"^\s*(?://|#)\s*\d+(?:\.\d+)*[.、．]?\s+\S")
+STEP_COMMENT_RE = re.compile(r"^\s*(?://|#)\s*(\d+(?:\.\d+)*)[.、．]?\s+\S")
 
 #: 待办标记必须出现在注释开头才算数；句中提到 TODO 只是说明文字。
 #: 一并覆盖 TODO / FIXME / XXX，早期版本只查 TODO 会让 FIXME 全部漏报。
@@ -258,24 +259,44 @@ def check_comment_language(path: Path, entries: Iterable[Tuple[int, str]]) -> Li
     return issues
 
 
-def has_step_comments(lines: List[str], start: int, end: int) -> bool:
-    """判断给定行区间内是否出现了步骤编号注释。
+def check_step_comments(path: Path, comments: List[str], start: int,
+                        end: int, name: str, complex_method: bool) -> List[Issue]:
+    """核对步骤数量和层级顺序；业务阶段是否完整仍需人工判断。
 
     Args:
-        lines: 文件的原始行列表。
-        start: 起始行号（1 起始，包含）。
-        end: 结束行号（1 起始，包含）。
+        path: 用于问题报告的源文件路径。
+        comments: 与源码等长的真实注释视图，不包含字符串示例。
+        start: 检查范围起始行，1 起始且包含该行。
+        end: 检查范围结束行，1 起始且包含该行。
+        name: 报告中的方法或函数名称。
+        complex_method: 是否需要提示步骤数量不足；不代表语义判定。
 
     Returns:
-        区间内至少出现 2 条编号注释时返回 True；只有一条说明没有真正拆解流程。
+        数量不足及编号顺序异常的提示列表。
     """
+    issues: List[Issue] = []
+    previous: Tuple[int, ...] = ()
     count = 0
-    for line in lines[start - 1:end]:
-        if STEP_COMMENT_RE.match(line):
-            count += 1
-            if count >= 2:
-                return True
-    return False
+    # 1. 只使用注释视图，避免字符串和文档示例冒充方法体步骤。
+    for lineno in range(start, end + 1):
+        match = STEP_COMMENT_RE.match(comments[lineno - 1])
+        if not match:
+            continue
+        current = tuple(int(part) for part in match.group(1).split("."))
+        # 2. 允许进入子步骤，或结束当前层级后继续同级/上级步骤。
+        allowed = {previous + (1,)}
+        for depth in range(1, len(previous) + 1):
+            allowed.add(previous[:depth - 1] + (previous[depth - 1] + 1,))
+        if current not in allowed:
+            issues.append(Issue(path, lineno, WARNING, "invalid-step-numbering",
+                                f"`{name}` 步骤编号重复、跳号或缺少父步骤；请按真实流程连续编号"))
+        previous = current
+        count += 1
+    # 3. 数量检查与文档检查独立；两个编号也不代表语义完整。
+    if complex_method and count < 2:
+        issues.append(Issue(path, start, WARNING, "missing-step-comments",
+                            f"`{name}` 疑似多阶段流程，需人工核对并用 1.、1.1 等编号标出主要步骤"))
+    return issues
 
 
 # --------------------------------------------------------------------------
@@ -301,13 +322,13 @@ def check_python_file(path: Path, source: str) -> List[Issue]:
 
     lines = source.splitlines()
     issues: List[Issue] = []
+    comment_view = _python_comment_view(source, len(lines))
 
     # 2. 遍历模块顶层定义与类内方法，逐个校验文档与步骤注释
     for node, kind in _iter_python_definitions(tree):
-        issues.extend(_check_python_node(path, node, kind, lines))
+        issues.extend(_check_python_node(path, node, kind, lines, comment_view))
 
     # 3. 追加与语言无关的待办标记检查
-    comment_view = _python_comment_view(source, len(lines))
     issues.extend(check_todo(path, comment_view))
 
     # 4. 注释语言检查：行注释与 docstring 一并检查
@@ -402,7 +423,7 @@ def _iter_python_definitions(tree: ast.Module) -> Iterator[Tuple[ast.AST, str]]:
 
 
 def _check_python_node(path: Path, node: ast.AST, kind: str,
-                       lines: List[str]) -> List[Issue]:
+                       lines: List[str], comment_view: List[str]) -> List[Issue]:
     """校验单个 Python 定义的 docstring 与步骤注释。
 
     Args:
@@ -410,42 +431,43 @@ def _check_python_node(path: Path, node: ast.AST, kind: str,
         node: 函数、异步函数或类节点。
         kind: 中文类型名，用于提示文案。
         lines: 文件的原始行列表。
+        comment_view: 已解析的真实注释，避免每个函数重复词法分析。
 
     Returns:
         该定义上发现的问题列表。
     """
     name = node.name  # type: ignore[attr-defined]
-    # 1. 下划线开头视为非 public，跳过
-    if name.startswith("_"):
-        return []
-
-    # 2. 缺文档只提示人工判断，简单属性不必机械补注释
+    # 1. 文档与步骤分别检查；私有函数和缺文档函数也检查步骤。
     doc = ast.get_docstring(node)
     line = node.lineno  # type: ignore[attr-defined]
-    if not doc:
-        return [Issue(path, line, WARNING, "missing-doc",
-                      f"public {kind} `{name}` 缺少 docstring")]
+    issues: List[Issue] = []
+    if not doc and not name.startswith("_"):
+        issues.append(Issue(path, line, WARNING, "missing-doc",
+                            f"public {kind} `{name}` 缺少 docstring，请核对是否属于简单函数豁免"))
     if kind == "类":
         # 类有 docstring 后，还要看是否有公共属性需要 Attributes: 小节
-        if _python_class_has_attributes(node) and "Attributes:" not in doc:
-            return [Issue(path, line, WARNING, "missing-attributes",
-                           f"类 `{name}` 有公共属性但 docstring 缺少 Attributes: 小节")]
-        return []
+        if doc and _python_class_has_attributes(node) and "Attributes:" not in doc:
+            issues.append(Issue(path, line, WARNING, "missing-attributes",
+                                f"类 `{name}` 有公共属性，请核对是否需要 Attributes: 小节"))
+        return issues
 
-    issues: List[Issue] = []
-    # 3. 有参数 / 有返回值时检查 Google Style 小节是否齐全
-    if _python_has_params(node) and "Args:" not in doc:
+    # 2. 已有文档的小节缺失只提示语义核对，不要求重复类型。
+    if doc and _python_has_params(node) and "Args:" not in doc:
         issues.append(Issue(path, line, WARNING, "missing-args",
                             f"`{name}` 有参数但 docstring 缺少 Args: 小节"))
-    if _python_returns_value(node) and not any(tag in doc for tag in ("Returns:", "Yields:")):
+    if doc and _python_returns_value(node) and not any(tag in doc for tag in ("Returns:", "Yields:")):
         issues.append(Issue(path, line, WARNING, "missing-returns",
                             f"`{name}` 有返回值但 docstring 缺少 Returns: 小节"))
 
-    # 4. 复杂方法缺少阶段编号时提示人工补充
-    if _is_complex_python(node) and not has_step_comments(
-            lines, line, getattr(node, "end_lineno", line)):
-        issues.append(Issue(path, line, WARNING, "missing-step-comments",
-                            f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
+    # 3. 使用真实行注释，并排除内部函数/类的步骤，避免外层被误判为已覆盖。
+    comments = comment_view.copy()
+    for child in ast.walk(node):
+        if child is not node and isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            for index in range(child.lineno - 1, getattr(child, "end_lineno", child.lineno)):
+                comments[index] = ""
+    issues.extend(check_step_comments(path, comments, line,
+                                     getattr(node, "end_lineno", line), name,
+                                     _is_complex_python(node)))
     return issues
 
 
@@ -533,7 +555,7 @@ def _python_returns_value(node: ast.AST) -> bool:
 def _is_complex_python(node: ast.AST) -> bool:
     """按方法体行数与分支数判断 Python 函数是否属于复杂方法。
 
-    docstring 不计入方法长度，短方法按规范 3.1 一律豁免。
+    docstring 不计入方法长度；短方法仅不自动报警，并非规范豁免。
     嵌套在方法体内的内部函数/类不计入外层分支数。
 
     Args:
@@ -606,12 +628,12 @@ def check_java_file(path: Path, source: str) -> List[Issue]:
     code, comments = _split_java_views(lines)
 
     issues: List[Issue] = []
-    # 2. 逐行寻找 public / protected 方法声明并校验
+    # 2. 逐行寻找方法声明；私有方法也检查步骤。
     for index, code_line in enumerate(code):
         match = JAVA_METHOD_RE.match(code_line)
         if not match or not _is_java_method_decl(match, code_line):
             continue
-        issues.extend(_check_java_method(path, match, index, lines, code))
+        issues.extend(_check_java_method(path, match, index, lines, code, comments))
 
     # 3. 追加与语言无关的待办标记检查
     issues.extend(check_todo(path, comments))
@@ -755,26 +777,22 @@ def _is_java_method_decl(match: "re.Match[str]", code_line: str) -> bool:
         code_line: 去噪后的整行代码。
 
     Returns:
-        判定为 public/protected 方法或构造方法声明时返回 True。
+        判定为方法或构造方法声明时返回 True。
     """
-    mods = match.group("mods")
-    # 1. 只关心对外可见的方法
-    if "public" not in mods and "protected" not in mods:
-        return False
-    # 2. 排除控制语句与 class / interface / enum / record 声明
+    # 1. 排除控制语句与 class / interface / enum / record 声明。
     name = match.group("name")
     type_token = (match.group("type") or "").strip().split()
     if name in JAVA_KEYWORD_NAMES:
         return False
     if any(token in JAVA_TYPE_DECL_KEYWORDS for token in type_token):
         return False
-    # 3. 排除带初始化表达式的字段，如 public Foo bar = new Foo();
+    # 2. 排除带初始化表达式的字段，如 public Foo bar = new Foo();
     head = code_line[:match.end()]
     return "=" not in head
 
 
 def _check_java_method(path: Path, match: "re.Match[str]", index: int,
-                       lines: List[str], code: List[str]) -> List[Issue]:
+                       lines: List[str], code: List[str], comment_view: List[str]) -> List[Issue]:
     """校验单个 Java 方法的 Javadoc 与步骤注释。
 
     Args:
@@ -783,6 +801,7 @@ def _check_java_method(path: Path, match: "re.Match[str]", index: int,
         index: 声明行在列表中的 0 起始下标。
         lines: 文件的原始行列表。
         code: 去噪后的代码行列表。
+        comment_view: 已解析的真实注释。
 
     Returns:
         该方法上发现的问题列表。
@@ -790,19 +809,21 @@ def _check_java_method(path: Path, match: "re.Match[str]", index: int,
     name = match.group("name")
     lineno = index + 1
 
-    # 1. 缺 Javadoc 只提示人工判断，缺失时跳过标签检查
-    javadoc = _find_javadoc(lines, index)
-    if javadoc is None:
-        return [Issue(path, lineno, WARNING, "missing-doc",
-                      f"public/protected 方法 `{name}` 缺少 Javadoc 文档注释")]
-
+    # 1. 缺 Javadoc 时仍检查方法体；私有方法不强制公开契约文档。
     issues: List[Issue] = []
+    javadoc = _find_javadoc(lines, index)
+    public_api = bool(re.search(r"\b(public|protected)\b", match.group("mods")))
+    if javadoc is None and public_api:
+        issues.append(Issue(path, lineno, WARNING, "missing-doc",
+                            f"public/protected 方法 `{name}` 缺少 Javadoc 文档注释"))
+
     # 2. 有参数 / 有返回值时检查 @param 与 @return
-    if _java_has_params(code, index, match.end()) and "@param" not in javadoc:
+    inherited = javadoc is not None and "{@inheritDoc}" in javadoc
+    if javadoc and not inherited and _java_has_params(code, index, match.end()) and "@param" not in javadoc:
         issues.append(Issue(path, lineno, WARNING, "missing-param",
                             f"`{name}` 有参数但 Javadoc 缺少 @param"))
     return_type = (match.group("type") or "").strip()
-    if return_type and return_type != "void" and "@return" not in javadoc:
+    if javadoc and not inherited and return_type and return_type != "void" and "@return" not in javadoc:
         issues.append(Issue(path, lineno, WARNING, "missing-return",
                             f"`{name}` 有返回值但 Javadoc 缺少 @return"))
 
@@ -810,10 +831,13 @@ def _check_java_method(path: Path, match: "re.Match[str]", index: int,
     body = _find_java_body(code, index)
     if body is not None:
         start, end = body
-        if _is_complex_java(code, start, end) and not has_step_comments(
-                lines, start + 1, end + 1):
-            issues.append(Issue(path, lineno, WARNING, "missing-step-comments",
-                                f"`{name}` 多阶段流程需用 1.、1.1 等编号注释标出主要步骤"))
+        comments = comment_view.copy()
+        _, included = _java_outer_method_view(code, start, end)
+        for offset, keep in enumerate(included):
+            if not keep:
+                comments[start + offset] = ""
+        issues.extend(check_step_comments(path, comments, start + 1, end + 1,
+                                         name, _is_complex_java(code, start, end)))
     return issues
 
 
@@ -909,7 +933,7 @@ def _find_java_body(code: List[str], index: int) -> Optional[Tuple[int, int]]:
 def _is_complex_java(code: List[str], start: int, end: int) -> bool:
     """按行数与分支数判断 Java 方法是否属于复杂方法。
 
-    短方法按规范 3.1 一律豁免。
+    短方法仅不自动报警，是否包含多阶段流程仍须人工核对。
 
     Args:
         code: 去噪后的代码行列表。
@@ -1138,13 +1162,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         argv: 命令行参数列表，默认取 sys.argv[1:]。
 
     Returns:
-        存在 ERROR 时返回 1，否则返回 0。
+        达到 --fail-on 阈值时返回 1，否则返回 0；检查失败或路径无匹配返回 2。
     """
     # 1. 解析参数：默认检查给定路径，--staged 改为检查 Git 暂存区
     parser = argparse.ArgumentParser(description="代码注释规范静态检查（Java / Python）")
     parser.add_argument("targets", nargs="*", help="待检查的文件或目录")
     parser.add_argument("--staged", action="store_true",
-                        help="检查 Git 暂存区内容，而不是工作区当前内容")
+                         help="检查 Git 暂存区内容，而不是工作区当前内容")
+    parser.add_argument("--fail-on", choices=("error", "warning"), default="error",
+                        help="阻断阈值；warning 用于要求人工审查前不能直接通过的场景")
     args = parser.parse_args(argv)
 
     if args.staged:
@@ -1177,7 +1203,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     errors = sum(1 for issue in issues if issue.level == ERROR)
     warnings = len(issues) - errors
     print(f"\n检查 {checked} 个文件，发现 {errors} 个 ERROR，{warnings} 个 WARNING")
-    return 1 if errors else 0
+    return 1 if errors or (warnings and args.fail_on == "warning") else 0
 
 
 if __name__ == "__main__":

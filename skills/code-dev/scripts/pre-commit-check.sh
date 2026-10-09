@@ -11,7 +11,7 @@
 # 会误拦一个本来干净的提交。
 #
 # READABILITY_FAIL_ON=warning 或 READABILITY_FIRST_STRICT=1 时，
-# 抽象检查器的 WARNING 也会阻断。
+# 两个检查器的 WARNING 都会阻断；COMMENT_FAIL_ON 可单独设置注释阈值。
 set -euo pipefail
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
@@ -50,8 +50,12 @@ if [ -z "$PYTHON_BIN" ]; then
 fi
 
 FAIL_ON="${READABILITY_FAIL_ON:-none}"
+COMMENT_THRESHOLD="${COMMENT_FAIL_ON:-error}"
 if [ "${READABILITY_FIRST_STRICT:-0}" = "1" ] && [ "$FAIL_ON" = "none" ]; then
   FAIL_ON=warning
+fi
+if [ "${READABILITY_FIRST_STRICT:-0}" = "1" ]; then
+  COMMENT_THRESHOLD=warning
 fi
 
 STATUS=0
@@ -93,9 +97,9 @@ else
     echo '[code-dev] 注释检查：本次没有暂存 Java/Python 文件，跳过。'
   else
     echo "[code-dev] 注释检查（暂存区，${#STAGED[@]} 个文件）："
-    "$PYTHON_BIN" "$COMMENT" --staged || {
+    "$PYTHON_BIN" "$COMMENT" --staged --fail-on "$COMMENT_THRESHOLD" || {
       rc=$?
-      # 注释检查器只有 ERROR 才非零，那属于"检查未完成"或硬性违规，一律阻断
+      # 达到选定阈值或检查失败时阻断；默认阈值仍为 ERROR。
       STATUS=$rc
     }
   fi

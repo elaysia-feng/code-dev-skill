@@ -1,6 +1,6 @@
 # Project Structure
 
-The directory layouts in this file are **mandatory**, not illustrative. Use them as-is; a project whose current layout differs gets migrated, not exempted. Entries marked `optional` are **prohibited unless the application actually needs them** — that is a restriction, not a style choice. Create only the directories the current project needs, but create those in the shape shown here.
+本文目录规范适用于新增代码、目录和模块；既有项目的全量迁移必须先按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则询问用户。用户同意后全量迁移；不同意则保留既有结构，仅新增部分遵循本规范。标记 `optional` 的目录仅在应用确有需要时创建，不照搬空目录模板。
 
 ## Java Backend
 
@@ -37,7 +37,7 @@ Responsibilities:
 - `config/` — framework/infrastructure configuration.
 - `exception/` — project/domain exceptions when they have clear ownership.
 
-Use the singular `service/` package name shown above. A project currently using `services/` is migrated to `service/`.
+新增包使用上述单数名称 `service/`。既有 `services/` 仅在用户同意全量迁移后改为 `service/`。
 
 ### Multi-Maven / multi-module project with dedicated `*.biz`
 
@@ -93,7 +93,7 @@ project-parent/
 └── common-api/             # optional; only if the project genuinely needs one
 ```
 
-The shared module is named `common-api/`. A project currently using `base-service`, `common`, `platform-core`, or `shared-kernel` is migrated to `common-api/`; do not invent other names.
+新建共享模块使用 `common-api/`。既有 `base-service`、`common`、`platform-core` 或 `shared-kernel` 仅在用户同意全量迁移后改为 `common-api/`；不同意时保留并复用已有模块，不另建重复模块。
 
 If an individual microservice is a normal Spring module, use its `service/` + `impl/` business structure. If the Maven project instead separates a dedicated `*.biz` module, use the `biz` layout described above.
 
@@ -101,7 +101,7 @@ See `microservice-guidelines.md` for cross-service rules.
 
 ## Python Backend (FastAPI + LangGraph)
 
-Use a real Python package under `src/` so imports and the directory tree agree:
+新建后端默认使用 `src/app/` 包布局，配置包发现、开发安装及启动入口，验证从不同工作目录也能正常导入；不要仅搬文件后依赖临时修改 `sys.path`。已有 `app/` 平铺布局的调整受迁移选择约束。
 
 ```text
 src/
@@ -109,19 +109,20 @@ src/
     ├── __init__.py
     ├── main.py
     ├── api/
-    │   └── v1/
+    │   └── v1/                    # optional; API 确需版本化时创建
     ├── core/
     │   ├── config.py
-    │   ├── llm.py
+    │   ├── llm.py                 # optional; 使用 LLM 时创建
     │   └── middleware.py          # optional
-    ├── graphs/
+    ├── graphs/                    # optional; 使用 LangGraph 时创建
     ├── schemas/
     ├── services/
-    ├── models/
+    ├── models/                    # optional; 拥有数据库模型时创建
+    ├── repositories/              # optional; 有明确数据访问边界时创建
     └── memory/                    # optional
 ```
 
-Do **not** create `utils/`, `common/`, `base/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need. A package that already exists is migrated to the layout above rather than kept as-is.
+Do **not** create `utils/`, `common/`, `base/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need. 既有包仅在用户同意全量迁移后调整到上述布局。
 
 Typical repository-root files:
 
@@ -226,7 +227,7 @@ Pydantic request/response/application models. Keep validation with the model or 
 
 Non-agent application/business logic such as database operations, external service calls, document ingestion, or orchestration outside the graph.
 
-Do not introduce a new `repositories/` layer — it is not part of the mandatory layout. If the project already has repositories, services **must** use that boundary rather than bypassing it, because two competing data-access paths are worse than either one alone.
+小项目可以由 service 直接进行简单数据库访问。有复用查询、复杂持久化规则、存储替换或需要隔离测试的明确边界时，可新增 `repositories/`；不要为单次 CRUD 添加纯转发层。已有 repository 时必须复用该边界，不能另建并行数据访问路径。事务由业务入口管理，repository 不自行提交会拆散同一业务操作的事务。
 
 ### `models/`
 
@@ -235,6 +236,36 @@ SQLModel/SQLAlchemy persistence models when the application owns relational pers
 ### `memory/`
 
 Optional long-term memory implementations such as pgvector/mem0 adapters. Do not create this package unless the application actually uses long-term memory.
+
+## TypeScript 前端应用
+
+以下为无强制文件路由的 React/Vue 应用基线，按实际需要创建目录；Next.js 等框架使用其 `app/`、`pages/` 等保留目录，不能照搬 `pages/` 的含义。具体职责见 [frontend-guidelines.md](frontend-guidelines.md)。
+
+```text
+src/
+├── main.ts / main.tsx      # 使用框架实际入口，不同时创建两套
+├── App.vue / App.tsx       # 应用组合入口
+├── pages/                 # 路由页面
+├── features/              # optional; 较复杂业务按功能归属组织
+│   └── orders/
+│       ├── components/
+│       ├── api.ts
+│       ├── types.ts
+│       └── useOrders.ts   # optional; React hook 或 Vue composable
+├── components/            # optional; 跨功能通用组件
+├── api/                   # optional; 共享请求客户端和协议处理
+├── router/                # optional; 框架需要显式路由配置时创建
+├── stores/                # optional; 确有共享状态时创建
+├── assets/                # optional; 参与构建的资源
+└── styles/                # optional; 全局样式和设计变量
+```
+
+小页面可直接组织在页面文件及相邻模块中；功能变复杂时再聚合到 `features/<功能>/`。功能内部不得直接依赖其他功能的私有组件；共享内容须有明确契约。不要同时在全局与功能目录中维护两套请求、状态或类型。既有结构迁移仍须先询问用户。
+
+## Python 布局参考
+
+- [PyPA：src 与平铺布局](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/)：两种布局有不同的安装与导入行为，`src/` 需要配套安装配置。
+- [FastAPI：多文件应用](https://fastapi.tiangolo.com/tutorial/bigger-applications/)：按职责组织包并组合路由；本规范的具体目录命名属于项目约定。
 
 ## `__init__.py`
 
@@ -250,5 +281,5 @@ Example lightweight export:
 from .retrieve import retrieve
 from .generate_answer import generate_answer
 
-__all__ = ["retrieve", "generate_answer"]
+    __all__ = ["retrieve", "generate_answer"]
 ```

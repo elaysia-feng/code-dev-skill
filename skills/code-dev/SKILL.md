@@ -1,10 +1,8 @@
 ---
 name: code-dev
 description: >-
-  Mandatory development standard for Java/Spring, Python/FastAPI/LangGraph and
-  TypeScript/Node.js projects, covering project structure, the shape of Java business
-  interfaces, Simplified Chinese code comments and TypeScript npm package publishing.
-  For implementation, review and refactoring.
+  用于 Java/Spring、Python/FastAPI/LangGraph 和 TypeScript 前端/Node.js 项目的实现、审查与重构。
+  规范项目结构、Java 业务接口、简体中文注释和流程编号，并按需核对 TypeScript npm 包发布。
 license: MIT
 ---
 
@@ -16,19 +14,23 @@ license: MIT
 
 1. Correctness.
 2. **Company standards**: if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
-3. Explicit user requirements — they define the scope of the task, but do not exempt you from the mandatory rules below.
+3. Explicit user requirements — they define the scope of the task, including the migration choice below; this skill never authorizes changes beyond that scope.
 4. The mandatory rules of this standard.
 5. The simplest, clearest implementation.
 
-Item 2 is the **only** source of exemption. "The existing code is written this way" is not a reason in itself.
+Company standards take precedence; preservation of existing structure follows the migration choice below. "The existing code is written this way" does not exempt new code from this standard.
+
+## 既有项目迁移
+
+发现既有项目结构不符合本规范时，先说明拟迁移的范围，再询问用户是否全量迁移。用户同意后直接完成全量迁移，并验证相关导入、构建和运行行为；用户不同意时，仅新增代码、目录和模块遵循本规范，保留既有结构，不顺带搬移、重命名或重构既有代码。新增代码与既有结构衔接时复用已有业务与数据访问边界，不复制一套实现。用户尚未答复时，不开始既有结构迁移；当前会话已明确同意或拒绝的，不重复询问。以下所有既有结构迁移条款均受此规则约束。
 
 ## Mandatory rules
 
 These must be enforced for implementation, review and refactoring:
 
-- **Project structure must follow [`references/project-structure.md`](references/project-structure.md)**, and must not be compromised to match the project's current state. When the structure does not comply, change the structure.
+- **Project structure must follow [`references/project-structure.md`](references/project-structure.md)**; existing structures are migrated only within the user's migration choice above.
 - **Java business components must always be `interface + impl/`**; a single implementation is not a reason to skip the interface.
-- **Comments must always be in Simplified Chinese**; projects that use English comments must be rewritten the same way. Multi-stage methods must mark their steps with hierarchical numbering such as `1.` and `1.1`.
+- 新增和修改的说明性注释使用简体中文；不顺带翻译未修改的历史注释。多阶段方法按真实流程使用 `1.`、`1.1` 等编号，私有方法和短方法也按业务阶段判断，不能仅因行数少而省略。
 - **Source files must always be UTF-8**, with or without a BOM. Neither checker can analyse a file it cannot decode, so a non-UTF-8 source file is reported and rejected rather than quietly passed over.
 - **Do not add** shared methods, base classes, shared modules or extra layers merely to reduce the number of duplicated lines.
 - Extract a structure only when one of the following holds: the user explicitly asked for it, a stable shared rule exists, there is a clear extension point, or there is a framework boundary. The project's pre-existing architecture does not qualify.
@@ -53,8 +55,9 @@ A single-implementation interface must not be skipped just because "there is onl
 | Java/Spring backend | [`references/java-guidelines.md`](references/java-guidelines.md) |
 | Java microservice boundaries | [`references/microservice-guidelines.md`](references/microservice-guidelines.md) and the Java guidelines |
 | Python, FastAPI or LangGraph | [`references/python-guidelines.md`](references/python-guidelines.md) |
+| TypeScript 前端应用（React/Vue/Next.js 等） | [`references/frontend-guidelines.md`](references/frontend-guidelines.md) 与结构规范中的前端章节 |
 | A new project, or adjusting directories/modules | [`references/project-structure.md`](references/project-structure.md) |
-| Adding or changing Java, Python or TypeScript comments | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md) |
+| 新增、修改或审查 Java/Python/TypeScript 代码（即使用户没提注释） | 必须加载 [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md) |
 | Deciding what a specific comment should actually say | [`references/code-comment-examples.md`](references/code-comment-examples.md) |
 | Creating or maintaining a TypeScript npm package, its export entry point or its publish contents | [`references/typescript-package-guidelines.md`](references/typescript-package-guidelines.md) |
 | Extracting a boundary, or when the organisation is unclear | Read only the relevant examples in [`references/examples.md`](references/examples.md) |
@@ -62,7 +65,7 @@ A single-implementation interface must not be skipped just because "there is onl
 
 ## Checks
 
-Because the standard is mandatory, both commands below are used with blocking semantics. Checker output is only a lead and cannot replace human judgement.
+检查器只提供启发式线索，不能替代人工判断。WARNING 必须逐条修正，或说明符合哪项豁免及其源码依据；退出码为 0 不代表注释规范已通过。审查任务只报告，不自动修正。
 
 When reviewing abstractions:
 
@@ -75,16 +78,16 @@ Java business components are automatically exempt from the single-implementation
 After changing Java/Python files:
 
 ```sh
-python <skill-dir>/scripts/check_comments.py <changed-files>
-python <skill-dir>/scripts/check_comments.py --staged   # 检查 Git 暂存区内容
+python <skill-dir>/scripts/check_comments.py <changed-files> --fail-on warning
+python <skill-dir>/scripts/check_comments.py --staged --fail-on warning
 ```
 
 Use `--staged` when the working tree and the index differ — it reads what would actually be committed, not what happens to be on disk.
 
-Exit codes: `0` means no ERROR (a WARNING may still be present); `1` means an ERROR exists; `2` means no checkable file was matched (**which does not mean there is no problem**). This checker does not cover TypeScript, and every WARNING requires human judgement.
+默认退出码 `0` 仅表示没有 ERROR；`--fail-on warning` 会同时阻断 WARNING；`1` 表示达到阻断阈值；`2` 表示路径未匹配可检查文件或检查无法完成。暂存区无 Java/Python 变更时返回 `0` 并说明未检查文件。TypeScript 必须人工核对，不能宣称该检查器已覆盖。
 
 `check-abstraction-smell.py` exits `0` below the threshold, `1` when `--fail-on` is reached, and `2` when a source file cannot be decoded.
 
-Optional git hook: merge `scripts/pre-commit-check.sh` into the existing hook, do not overwrite it. It runs **both** checkers over the staged Java/Python files — previously it ran only the abstraction checker, so comment rules had no coverage at the commit gate. Smell findings are advisory unless `READABILITY_FAIL_ON=warning` is set, but two things always block because they mean the check did not finish: a source file that is not UTF-8, and any `check_comments.py` ERROR (syntax error, unreadable file, or a TODO without an owner).
+可选 Git hook：将 `scripts/pre-commit-check.sh` 合并到现有 hook，不覆盖。它检查暂存内容；设置 `READABILITY_FIRST_STRICT=1` 时两个检查器的 WARNING 都会阻断，也可单独设置 `COMMENT_FAIL_ON=warning`。默认只阻断注释 ERROR 和读取失败；不能把 hook 放行当成规范通过。
 
-Before finishing, confirm that the requirements have been delivered, that the mandatory rules have been checked one by one, and state what has not yet been verified.
+完成前逐个核对本次新增或修改的函数：公开契约是否需要文档、多阶段流程是否有编号、父子层级是否真实、关键边界/失败原因是否说明。覆盖短函数和私有函数；简单访问器、单步函数、纯转发可以豁免。说明 WARNING 的处理与未验证部分，不用无意义注释消除提示。

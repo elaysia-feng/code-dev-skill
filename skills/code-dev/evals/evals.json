@@ -50,7 +50,7 @@
     {
       "id": 10,
       "prompt": "The existing FastAPI project already has repositories/; add an order query feature.",
-      "expected_output": "The existing repository boundary must be used and the ORM must never be accessed around it; at the same time repositories/ is not part of the mandatory structure, so never add a second set. The reason is that two coexisting data-access paths are worse than either single path."
+      "expected_output": "复用已有 repository 边界，不绕过它直接访问 ORM，也不新增第二套数据访问路径。repository 可在有明确持久化边界时创建，不能为单次 CRUD 堆叠纯转发层。"
     },
     {
       "id": 11,
@@ -70,7 +70,7 @@
     {
       "id": 14,
       "prompt": "The LangGraph already has five main nodes - plan, retrieve, grade, rewrite, generate - and graph.py keeps growing.",
-      "expected_output": "Migrate to a graph package: graph.py + state.py + nodes/, with the main nodes split into separate files; nodes/__init__.py must stay an empty file or hold only lightweight exports."
+      "expected_output": "建议按 graph.py、state.py、nodes/ 组织复杂图；未明确授权结构迁移时先说明范围并询问，同意后迁移，不同意则保留旧图结构。nodes/__init__.py 仅放轻量导出，不执行初始化。"
     },
     {
       "id": 15,
@@ -110,12 +110,12 @@
     {
       "id": 22,
       "prompt": "My old project uses a services/ package name; should I migrate it to service/ as you said?",
-      "expected_output": "Migrate to service/. The standard is mandatory and the package name has been unified to the singular; never grant an exemption merely because the existing project is consistent and reasonable. Only projects covered by a company-standard skill are exempt."
+      "expected_output": "先说明涉及包路径、导入和调用方的迁移范围，询问是否全量迁移。同意后迁移并验证；不同意时保留 services/，仅新增部分遵循规范，复用旧业务边界且不复制实现。"
     },
     {
       "id": 23,
       "prompt": "All the comments in the project are English Javadoc; should I convert them to Chinese too?",
-      "expected_output": "Convert the English comments in the files touched by this change into Simplified Chinese - this is mandatory; never sweep the whole repository while doing it. Keep English identifiers, framework names, and protocol names as they are."
+      "expected_output": "用户明确要求翻译时按确认的范围执行；普通开发任务仅新增或修改的说明性注释使用简体中文，不顺带翻译历史注释。保留标识符、术语、工具指令与许可证。"
     },
     {
       "id": 24,
@@ -125,12 +125,32 @@
     {
       "id": 25,
       "prompt": "Our company has its own backend-standard skill already installed in the project; do we still have to follow the code-dev structure?",
-      "expected_output": "No. When a company-standard skill exists it takes precedence and code-dev becomes advisory. That is the only exemption source in this standard."
+      "expected_output": "公司规范优先，code-dev 作为参考；没有公司规范时，也必须尊重用户对既有结构迁移范围的选择。"
     },
     {
       "id": 26,
       "prompt": "A microservice has a shared-kernel module that holds common code; does it need to be renamed?",
-      "expected_output": "It must be renamed to common-api/. The shared-module name is unified; names such as base-service, common, platform-core, and shared-kernel must no longer be used."
+      "expected_output": "新建共享模块采用 common-api/；已有 shared-kernel 的重命名先询问全量迁移选择，不同意则保留并复用，不能自动重命名或另建重复模块。"
+    },
+    {
+      "id": 27,
+      "prompt": "给这个 Vue TypeScript 项目新增订单列表和提交流程，没要求加注释。",
+      "expected_output": "加载前端及注释规范；按项目框架组织页面、业务组件、API 和局部状态，不套 npm 库发布规则。提交存在多个阶段时写真实流程编号，并验证失败和重复提交行为。"
+    },
+    {
+      "id": 28,
+      "prompt": "Python 的 _submit 函数只有几行，依次校验、付款、保存、通知，要不要编号？",
+      "expected_output": "需要；短函数和私有函数不因行数或可见性豁免多阶段编号。无真实子步骤时仅用 1.、2. 等同级编号，不强凑 1.1。"
+    },
+    {
+      "id": 29,
+      "prompt": "check_comments.py 返回 0，但有 missing-step-comments WARNING，可以说注释检查通过吗？",
+      "expected_output": "不能；默认返回 0 仅表示无 ERROR。必须人工判断并修正缺失阶段，或提供适用豁免及源码依据；--fail-on warning 可让未处理 WARNING 阻断。"
+    },
+    {
+      "id": 30,
+      "prompt": "给 Next.js App Router 的订单页新增功能，要不要改成你说的 src/pages？",
+      "expected_output": "保留框架 app/ 文件路由约定，不机械迁移到 pages/；业务模块按功能组织，共享模块仅在实际复用时创建。"
     }
   ]
 }

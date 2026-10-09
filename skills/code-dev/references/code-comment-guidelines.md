@@ -2,13 +2,20 @@
 
 ## Scope and principles
 
-- **Always write comments and documentation in Simplified Chinese**, keeping the necessary English terms (identifiers, framework names, protocol names). A project whose comments are in English must be rewritten to Chinese as well; this is mandatory.
-- Comment scope is limited to the files touched by the current change: comments at the change site must be Chinese; pre-existing English comments in the same file are rewritten too; do not sweep the whole repository on the side.
+- 新增和修改的说明性注释、文档使用简体中文，保留必要英文术语、标识符和工具指令。未修改的历史注释不顺带翻译，除非用户明确要求。
 - Comments state the contract the caller needs to know, the business reason, boundary conditions, ordering dependencies, units, null values, special values, side effects, or the exceptions that are actually thrown; never restate the variable name, the type, or obvious code steps.
 - When a method or function contains multiple ordered business stages, it must be documented with numbered comments that follow the real structure: sibling steps use `1.`, `2.`, `3.`; sub-steps use hierarchy levels such as `1.1`, `1.2`, `1.2.1`. The numbering levels must correspond to real parent/child steps, not a fixed template. Number only meaningful stages and conditions, never every query or assignment; single-step methods, getters/setters, and simple forwarders take no numbering.
 - Simple getters/setters, properties, and forwarder methods may omit documentation; never pile on comments just to silence static-analysis warnings.
 - Never infer thread safety, transactional behavior, idempotency, asynchrony, or exception guarantees from a name; record only the behavior that the implementation and the project contract actually guarantee.
 - To decide what a specific comment should contain, read [Code comment examples](code-comment-examples.md).
+
+### 必须覆盖的内容
+
+- 新增、修改或审查代码时必须加载本文，不能等到用户要求“写注释”才加载。
+- 有多个有序业务阶段的函数必须编号，与行数、可见性、是否已有 docstring/Javadoc 无关；私有辅助函数、异步函数、前端事件处理函数也适用。
+- 单步函数、简单访问器和纯转发无需编号；长函数也不一定有多个业务阶段，按实际职责判断。
+- 同级从 `1.` 连续递增；子步骤从父编号后的 `.1` 开始，必须先有父步骤。没有真实子步骤时不强凑 `1.1`。
+- 完成前逐个核对本次新增或修改函数的文档契约、阶段覆盖和关键边界。检查器的行数阈值不能作为短函数豁免依据。
 
 ### Comments exempt from the Simplified Chinese requirement
 
@@ -54,20 +61,22 @@ Translating or deleting any of these is wrong: their content is fixed by the too
 This standard is mandatory; run the checker after changing Java/Python files:
 
 ```sh
-python <skill-dir>/scripts/check_comments.py <changed-file-or-dir>
+python <skill-dir>/scripts/check_comments.py <changed-file-or-dir> --fail-on warning
 ```
 
 Exit codes:
 
 | Code | Meaning | Action |
 | --- | --- | --- |
-| 0 | No ERROR; WARNINGs may still be present | Judge each WARNING by hand |
-| 1 | ERRORs are present | Must be fixed, then rerun |
+| 0 | 未达到阻断阈值；默认模式仍可能有 WARNING | 逐条处理 WARNING，不能据此宣称规范通过 |
+| 1 | 有 ERROR，或指定 `--fail-on warning` 时有 WARNING | 修正真实问题后重跑；豁免项说明源码依据 |
 | 2 | No `.java` / `.py` files matched | **Not the same as "no problems"** — check that the path is correct |
 
 There are only two kinds of ERROR: the file cannot be parsed or read (a tool failure), and a TODO marker is missing its owner or its description. Fix the file in the first case; in the second, complete the marker into `TODO(owner): description` — never delete the TODO itself.
 
-The checker covers Java and Python, heuristically flags complex methods for numbering review based on method length/branch count, and checks whether comments are in Simplified Chinese. Short methods that genuinely contain multi-stage logic must still be numbered by hand according to this standard. A WARNING never proves that a comment is semantically correct; never pile on comments to satisfy a meaningless warning. TypeScript comments are reviewed by hand against the TSDoc conventions above.
+检查器覆盖 Java/Python，根据行数和分支数提示疑似缺少阶段注释，并检查已写编号的重复、跳号及父子顺序。步骤检查独立于公开契约文档检查，也覆盖私有函数；它不能证明业务阶段完整、说明正确或中文确为简体。短函数、嵌套内部函数、Java 无修饰符或复杂声明等启发式解析未覆盖的情况必须人工核对。TypeScript 的契约与流程编号均人工核对，不假称工具覆盖。
+
+WARNING 必须修正或记录适用豁免及源码依据；不为消除提示机械增加 `Args`、`Returns` 或逐行注释。暂存模式没有 Java/Python 变更时返回 `0` 并提示未检查文件，这不代表审查过其他语言。
 
 ## Official references
 

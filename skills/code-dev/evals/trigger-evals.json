@@ -27,7 +27,7 @@
   {
     "query": "这个项目要不要加一个 common 模块放公共代码？",
     "should_trigger": true,
-    "reason": "Application architecture/abstraction decision directly covered by the skill. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
+    "reason": "项目架构与共享边界判断属于此 skill 的适用范围。"
   },
   {
     "query": "Write a FastAPI login endpoint in Python",
@@ -117,7 +117,7 @@
   {
     "query": "帮我把项目的目录结构统一一下",
     "should_trigger": true,
-    "reason": "Project-structure normalization is a mandatory part of the standard and is the single most common real trigger after implementation work. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
+    "reason": "目录结构调整属于适用范围；既有结构迁移仍需确认用户选择。"
   },
   {
     "query": "What is the Javadoc standard for this project? I want to unify it.",
@@ -132,7 +132,7 @@
   {
     "query": "公司有自己的规范 skill，code-dev 还要用吗",
     "should_trigger": true,
-    "reason": "The company-standard override is the one exemption in the precedence model and must not be resolved without the skill. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
+    "reason": "应加载 skill 判断公司规范优先级与迁移范围。"
   },
   {
     "query": "帮我解释一下什么是依赖注入",

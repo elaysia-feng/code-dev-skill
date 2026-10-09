@@ -65,6 +65,21 @@ def is_active(self) -> bool:
     return self._status == Status.ACTIVE
 ```
 
+Python 的私有或短函数只要包含多个业务阶段，同样需要编号；没有真实子步骤就只写同级编号：
+
+```python
+def _submit_order(order):
+    # 1. 先校验订单状态，拒绝不允许提交的订单。
+    validate_submittable(order)
+    # 2. 保存提交结果后再通知，避免发送尚未保存的状态。
+    saved = save_submission(order)
+    # 3. 通知调用方，失败处理遵循当前项目的通知策略。
+    notify_submission(saved)
+    return saved
+```
+
+以上顺序依赖必须由实际实现支持；编号说明业务阶段，不承诺跨数据库与通知系统的原子性。
+
 ## TypeScript: document the public API contract
 
 The type signature expresses the static type; TSDoc adds the units and special values:
@@ -88,6 +103,26 @@ A line comment explains a business constraint that is easy to break, instead of 
 // 仅当状态版本未变化时更新，避免覆盖并发写入的结果。
 await repository.updateIfVersionMatches(id, expectedVersion, nextState);
 ```
+
+前端提交流程也按业务阶段编号，不能把所有事件处理函数都当作简单函数豁免：
+
+```ts
+async function submitOrder() {
+  // 1. 拒绝重复提交和不符合约束的输入。
+  if (submitting.value || !validateOrder()) return;
+  submitting.value = true;
+  try {
+    // 2. 保存订单，成功后再刷新当前页面的数据。
+    await orderApi.submit(form.value);
+    await refreshOrders();
+  } finally {
+    // 3. 成功或失败都释放提交状态，允许用户继续操作。
+    submitting.value = false;
+  }
+}
+```
+
+异常提示由当前项目的请求/页面边界处理；示例中的状态写法按所用框架调整。
 
 ## Never invent guarantees
 
