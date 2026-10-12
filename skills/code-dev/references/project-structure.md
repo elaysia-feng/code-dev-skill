@@ -1,5 +1,11 @@
 # Project Structure
 
+## 语言与应用类型边界
+
+下面的 Java/Spring、FastAPI/LangGraph 目录要求只用于相应应用类型，不强制套用到普通 Java 工具、其他 Python 应用、TS/JS、C++ 或 C# 项目。TS/JS 采用其框架的入口和目录约定，npm 包另按包发布规范执行。
+
+C++ 保持现有构建系统和目标划分：新项目可采用 `src/`、`tests/`；只有存在供外部使用的公开头文件时才设置 `include/`，私有头文件靠近实现。C# 保持 solution/project 边界：按现有应用类型组织 `.csproj` 与测试项目，ASP.NET Core、桌面应用和类库分别遵循自身入口约定。不为统一目录树拆分额外工程，不套用 Java 的 `service/impl/`。配置格式和环境布局统一参见 [配置规范](configuration-guidelines.md)。
+
 The directory layouts in this file are **mandatory**, not illustrative. Use them as-is; a project whose current layout differs gets migrated, not exempted. Entries marked `optional` are **prohibited unless the application actually needs them** — that is a restriction, not a style choice. Create only the directories the current project needs, but create those in the shape shown here.
 
 ## Java Backend

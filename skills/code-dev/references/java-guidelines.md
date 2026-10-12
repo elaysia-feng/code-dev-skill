@@ -25,6 +25,23 @@ if (!authorized(authorization)) {
 
 During implementation and refactoring, enforce this rule in the code being changed. During review, report unbraced branch bodies as mandatory violations. The existing checkers do not check this rule, so inspect branch bodies explicitly.
 
+## 配置与环境
+
+Spring Boot 默认配置必须写入 `application.yml`，开发、测试、生产差异分别写入 `application-dev.yml`、`application-test.yml`、`application-prod.yml`，使用 Spring profiles 选择。普通 Java 或其他框架采用项目原生配置机制，不为 YAML 或 profiles 引入 Spring。遵守 [`configuration-guidelines.md`](configuration-guidelines.md) 中的加载、默认值、敏感信息和禁止硬编码要求。下面的配置绑定要求适用于 Spring 项目。
+
+同一业务或基础设施的一组配置优先使用 `@ConfigurationProperties` 绑定到有明确归属的配置类型，并通过 `@Validated` 与校验注解检查必填值和范围；按项目机制注册配置类型。零散配置可使用 `@Value`，但禁止在注解中写入环境值或配置默认值，例如 `${client.timeout:5000}` 的默认值应移到 YAML。配置类型不需要业务接口或 `impl/`。
+
+## 注解使用
+
+框架已经提供适合当前职责的声明式能力时，应使用注解并确认生效，避免重复手写同等的框架逻辑。下面的框架注解规则以项目已使用相关框架为前提；普通 Java 不强行引入框架，不要求所有业务逻辑通过注解实现。
+
+- 组件注册使用 `@Service`、`@Component`、`@Repository` 或 `@Configuration` / `@Bean` 等与职责匹配的注解；业务组件注解放在实现类上。保持构造器注入；单构造器无需添加冗余的 `@Autowired`。
+- HTTP 入口使用请求映射注解；请求字段约束使用 Bean Validation 注解，并在入口使用 `@Valid` / `@Validated` 触发。跨字段、跨实体和依赖持久化状态的业务规则仍在合适的业务边界实现。
+- 需要原子性的写入流程，在 public 业务入口方法使用 `@Transactional`，根据实际异常语义设置回滚规则。普通查询通常不加事务；避免慢速外部调用占用事务。
+- 权限、缓存、异步和重试在确有需求、框架依赖已具备时使用相应注解；不要为了使用注解引入无关依赖或改变业务语义。
+- 实现接口或重写父类方法时使用 `@Override`。采用项目已有的代码生成注解时遵循其适用范围，不为减少几行代码新增依赖。
+- 必须验证注解生效所需的组件扫描、功能启用、校验依赖和代理调用链。事务、异步、缓存等代理注解不能仅靠同类自调用生效，也不能把注解放在无法被代理拦截的方法上后声称已实现功能。
+
 ## Business interface rule
 
 Before creating business code, identify the project shape.

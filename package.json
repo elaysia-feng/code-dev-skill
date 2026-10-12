@@ -1,7 +1,7 @@
 {
   "name": "readability-first-coding",
   "version": "1.3.3",
-  "description": "Mandatory development standard for Java/Spring, Python/FastAPI/LangGraph and TypeScript/Node.js projects: fixed project structure, interface-first Java business components, Simplified Chinese code comments and TypeScript package publishing.",
+  "description": "用于 Java/Spring、Python/FastAPI/LangGraph、TypeScript/JavaScript/Node.js、C++ 和 C#/.NET 的开发规范，涵盖分环境配置、禁止配置硬编码和业务魔法值、语言专属结构、简体中文注释及 TS 包发布。",
   "author": {
     "name": "elaysia-feng"
   },
