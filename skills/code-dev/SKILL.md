@@ -31,9 +31,9 @@ These must be enforced for implementation, review and refactoring:
 - **Java business components must always be `interface + impl/`**; a single implementation is not a reason to skip the interface.
 - **Comments must always be in Simplified Chinese**; projects that use English comments must be rewritten the same way. Multi-stage methods must mark their steps with hierarchical numbering such as `1.` and `1.1`.
 - **Source files must always be UTF-8**, with or without a BOM. Neither checker can analyse a file it cannot decode, so a non-UTF-8 source file is reported and rejected rather than quietly passed over.
-- **配置必须外置并区分开发、测试、生产环境**：公共默认值与环境差异分开，遵循项目框架原生配置机制。TS/Python 可使用 `.env` 系列，Spring Boot 使用 YAML 与 profiles，ASP.NET Core 使用 `appsettings` 系列，C++ 按项目采用 JSON、TOML、INI 等。必须接入并验证实际加载机制，详见 [`references/configuration-guidelines.md`](references/configuration-guidelines.md)。
-- **禁止配置硬编码和业务魔法值**：环境相关值、可调参数和敏感信息必须外置；固定业务状态及有明确业务含义的重复值使用领域所属的具名常量或枚举。把可变配置搬进常量类仍属于硬编码，但不要求提取每个数字和字符串。
-- **Java 合理使用注解**：框架提供且适用于当前职责的声明式能力时，应使用注解并确认生效；普通 Java 项目不为此强行引入框架，也不要求所有逻辑都通过注解实现。具体边界见 [`references/java-guidelines.md`](references/java-guidelines.md#注解使用)。
+- **Externalize configuration and separate development, test and production environments**: keep shared defaults separate from environment differences and use the framework's native configuration mechanism. TS/Python may use `.env` files, Spring Boot uses YAML and profiles, ASP.NET Core uses `appsettings` files, and C++ uses the project's JSON, TOML, INI or equivalent format. Wire up and verify actual loading; see [`references/configuration-guidelines.md`](references/configuration-guidelines.md).
+- **No hardcoded configuration or business magic values**: externalize environment values, tunable parameters and secrets. Represent fixed business states and repeated values with meaningful domain constants or enums. Moving configurable values into constants still counts as hardcoding; extracting every number or string is not required.
+- **Use Java annotations appropriately**: use applicable declarative framework capabilities and verify they take effect. Do not introduce frameworks into plain Java merely for annotations or require all logic to use them. See [`references/java-guidelines.md`](references/java-guidelines.md#annotation-usage).
 - **In Java and TypeScript/JavaScript, every `if`, `else if` and `else` branch body must be enclosed in braces `{}`**, even when it contains only one statement. This applies whether the statement is on the same line or the next line, including guard clauses and early `return`, `throw`, `break` or `continue`. Unbraced branch bodies are mandatory violations in implementation, review and refactoring; Python retains its native indentation-based syntax. See the examples in [`references/java-guidelines.md`](references/java-guidelines.md#conditional-branch-braces).
 - **Do not add** shared methods, base classes, shared modules or extra layers merely to reduce the number of duplicated lines.
 - Extract a structure only when one of the following holds: the user explicitly asked for it, a stable shared rule exists, there is a clear extension point, or there is a framework boundary. The project's pre-existing architecture does not qualify.
@@ -55,14 +55,14 @@ A single-implementation interface must not be skipped just because "there is onl
 
 | Scenario | Reference document |
 |---|---|
-| 新增或修改配置、环境切换、配置默认值，或检查硬编码 | [`references/configuration-guidelines.md`](references/configuration-guidelines.md)；Java 同时读取 Java guidelines |
+| Adding or changing configuration, environment selection, defaults, or reviewing hardcoding | [`references/configuration-guidelines.md`](references/configuration-guidelines.md); also read Java guidelines for Java |
 | Java/Spring backend | [`references/java-guidelines.md`](references/java-guidelines.md) |
 | Java microservice boundaries | [`references/microservice-guidelines.md`](references/microservice-guidelines.md) and the Java guidelines |
 | Python, FastAPI or LangGraph | [`references/python-guidelines.md`](references/python-guidelines.md) |
-| C++ 实现、审查或重构 | [`references/cpp-guidelines.md`](references/cpp-guidelines.md) |
-| C#/.NET 实现、审查或重构 | [`references/csharp-guidelines.md`](references/csharp-guidelines.md) |
+| C++ implementation, review or refactoring | [`references/cpp-guidelines.md`](references/cpp-guidelines.md) |
+| C#/.NET implementation, review or refactoring | [`references/csharp-guidelines.md`](references/csharp-guidelines.md) |
 | A new project, or adjusting directories/modules | [`references/project-structure.md`](references/project-structure.md) |
-| Adding or changing Java, Python, TypeScript/JavaScript, C++ or C# comments | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md)；注释语法采用对应语言形式 |
+| Adding or changing Java, Python, TypeScript/JavaScript, C++ or C# comments | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md); use the language's own comment syntax |
 | Deciding what a specific comment should actually say | [`references/code-comment-examples.md`](references/code-comment-examples.md) |
 | Creating or maintaining a TypeScript npm package, its export entry point or its publish contents | [`references/typescript-package-guidelines.md`](references/typescript-package-guidelines.md) |
 | Extracting a boundary, or when the organisation is unclear | Read only the relevant examples in [`references/examples.md`](references/examples.md) |
@@ -72,11 +72,11 @@ A single-implementation interface must not be skipped just because "there is onl
 
 Because the standard is mandatory, both commands below are used with blocking semantics. Checker output is only a lead and cannot replace human judgement.
 
-语言专属规则只适用于对应语言：Java 的业务接口、`impl/` 和注解要求不套用到其他语言；Python 保留缩进语法。C++、C# 的结构和检查分别按对应参考文档执行。
+Language-specific rules apply only to their language: Java business interfaces, `impl/` and annotations do not apply to other languages; Python retains indentation-based syntax. Follow the respective references for C++ and C# structure and checks.
 
 When reviewing abstractions:
 
-该检查器仅用于其支持的 Java/Python 代码；TS/JS、C++、C# 按规范人工审查，不得将未扫描语言报告为检查通过。
+This checker supports Java/Python only. Review TS/JS, C++ and C# manually against the standards; do not report unscanned languages as having passed.
 
 ```sh
 python <skill-dir>/scripts/check-abstraction-smell.py <project-root> --lang auto --fail-on warning
@@ -88,7 +88,7 @@ After changing Java/Python files:
 
 ```sh
 python <skill-dir>/scripts/check_comments.py <changed-files>
-python <skill-dir>/scripts/check_comments.py --staged   # 检查 Git 暂存区内容
+python <skill-dir>/scripts/check_comments.py --staged   # Check Git staged contents
 ```
 
 Use `--staged` when the working tree and the index differ — it reads what would actually be committed, not what happens to be on disk.
@@ -101,4 +101,4 @@ Optional git hook: merge `scripts/pre-commit-check.sh` into the existing hook, d
 
 Before finishing, confirm that the requirements have been delivered, that the mandatory rules have been checked one by one, and state what has not yet been verified.
 
-配置、硬编码和 Java 注解规则需要人工检查，现有检查器不覆盖这些要求。涉及配置变更时，还必须验证开发、测试、生产的环境选择、配置覆盖、缺失必填项的报错，以及生产环境不会回退到开发配置；不得使用真实生产凭据或连接真实生产服务来验证。
+Configuration, hardcoding and Java annotation rules require manual review; existing checkers do not cover them. For configuration changes, also verify development/test/production selection, overrides, missing required values and prevention of production fallback to development configuration. Use no real production credentials or connections during validation.

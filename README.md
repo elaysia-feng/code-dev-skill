@@ -1,6 +1,6 @@
 # code-dev
 
-适用于 **Java/Spring、Python/FastAPI/LangGraph、TypeScript/JavaScript/Node.js、C++ 和 C#/.NET** 的开发规范。统一分环境配置、禁止配置硬编码和业务魔法值、简体中文注释，并按语言和框架提供结构与验证要求；Java 业务接口和 TS 包发布规则仅适用于对应语言。
+A development standard for **Java/Spring, Python/FastAPI/LangGraph, TypeScript/JavaScript/Node.js, C++ and C#/.NET**. It covers environment-specific configuration, prevention of hardcoded configuration and business magic values, Simplified Chinese code comments, and language/framework-specific structure and validation. Java business interface and TS publishing rules apply only to their respective languages.
 
 The standard is mandatory: it applies to every personal project, and the bar is never lowered to match the existing code style. The only source of exemption is company standards — if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
 
@@ -51,7 +51,7 @@ Use `--target-dir` for a custom installation directory; the path must point at t
 
 ## Scope of application
 
-- 实现、审查和重构 Java、Python、TypeScript/JavaScript、C++、C#/.NET 项目。
+- Implementing, reviewing and refactoring Java, Python, TypeScript/JavaScript, C++ and C#/.NET projects.
 - Choosing how to organize services, interfaces and the data access layer based on the existing project.
 - Keeping responsibilities and dependencies under control in microservice, FastAPI and LangGraph projects.
 - Maintaining the comments touched by a change while editing code; read the package standards on demand when creating or maintaining a TS npm package.

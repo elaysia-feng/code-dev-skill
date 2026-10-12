@@ -40,6 +40,8 @@ Do not convert an entire code path to async only for style consistency.
 
 ## Services and persistence
 
+Organize `services/` into subpackages as real business boundaries emerge, such as `services/pay/`. Multiple domains or multiple responsibility-specific modules within a domain must not remain flat at the root. See [`project-structure.md`](project-structure.md#services) for layouts and small-project boundaries. Packaging does not imply adding ABC/Protocol, interface/implementation pairs or forwarding layers.
+
 For a small project with one implementation, a plain class or module-level function is enough:
 
 ```python

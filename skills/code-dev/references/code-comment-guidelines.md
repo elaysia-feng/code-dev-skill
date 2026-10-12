@@ -43,11 +43,11 @@ Translating or deleting any of these is wrong: their content is fixed by the too
 - Put multi-part contracts, business context, or limitations in `@remarks`; add `@example` only when it helps consumers call the API correctly; for a deprecated API use `@deprecated` and state the replacement.
 - Internal comments explain reasons, boundaries, or ordering constraints. Avoid restating the implementation line by line, and never apply a boilerplate template to every private member just to satisfy a documentation tool.
 
-## C++ 与 C#
+## C++ and C#
 
-- C++ 公共 API 按项目采用的 Doxygen 等文档格式，说明所有权、生命周期、错误和线程约束。
-- C# 公共 API 使用 XML 文档注释，说明有意义的参数、返回值、异常和取消语义。
-- 两种语言均遵循本文件的简体中文、流程编号和注释范围规则；不套用 Javadoc、TSDoc 或 Python docstring 语法。生成器和分析器固定指令保持原样。
+- C++ public APIs use the project's Doxygen or equivalent format to document ownership, lifetimes, errors and threading constraints.
+- C# public APIs use XML documentation comments to describe meaningful parameters, return values, exceptions and cancellation semantics.
+- Both languages follow this document's Simplified Chinese, stage numbering and comment scope rules. Do not apply Javadoc, TSDoc or Python docstring syntax. Preserve fixed generator and analyzer directives.
 
 ## TODO markers
 

@@ -1,33 +1,33 @@
-# 配置与禁止硬编码
+# Configuration and hardcoding prevention
 
-本文件适用于 Java、Python、TypeScript/JavaScript、C++、C# 的实现、重构和审查，以下要求均为硬性要求。
+These mandatory rules apply to implementation, refactoring and review in Java, Python, TypeScript/JavaScript, C++ and C#.
 
-## 配置文件与环境隔离
+## Configuration files and environment isolation
 
-- 公共默认值与开发、测试、生产的差异必须分开，默认值不得隐含开发数据库、测试账号等环境专属设置。文件格式、环境名称和加载方式遵循项目框架原生机制，不强制所有非 Java 项目使用 `.env`。
+- Separate shared defaults from development, test and production differences. Defaults must not implicitly select development databases, test accounts or other environment-specific settings. Use the project's framework-native file formats, environment names and loading mechanisms; do not force `.env` on every non-Java project.
 
-| 语言 / 框架 | 配置方式 |
+| Language / framework | Configuration mechanism |
 |---|---|
-| TS/JS、Node.js、Python | 支持 dotenv 的项目可用 `.env` 存公共默认值，`.env.development`、`.env.test`、`.env.production` 存环境差异；已有框架配置机制时遵循该机制 |
-| Java / Spring Boot | `application.yml` 与 `application-dev.yml`、`application-test.yml`、`application-prod.yml`，使用 Spring profiles |
-| 普通 Java / 其他 Java 框架 | 使用项目配置文件及其原生环境选择机制，不为配置格式引入 Spring |
-| C# / ASP.NET Core | `appsettings.json` 与 `appsettings.Development.json`、`appsettings.Test.json`、`appsettings.Production.json`；测试环境显式配置，不假设框架自动启用 |
-| 其他 C#/.NET 项目 | 使用现有配置提供程序；无机制时采用简单的配置文件与统一加载入口 |
-| C++ | 按项目已采用的 JSON、TOML、INI 等格式，分开公共值和环境差异；使用明确的环境选择参数及加载顺序，不为此引入重型配置框架 |
+| TS/JS, Node.js, Python | Projects supporting dotenv may use `.env` for shared defaults and `.env.development`, `.env.test`, `.env.production` for differences; follow an existing framework mechanism when present |
+| Java / Spring Boot | `application.yml` and `application-dev.yml`, `application-test.yml`, `application-prod.yml`, selected through Spring profiles |
+| Plain Java / other Java frameworks | Project configuration files and native environment selection; do not introduce Spring just for configuration formats |
+| C# / ASP.NET Core | `appsettings.json` and `appsettings.Development.json`, `appsettings.Test.json`, `appsettings.Production.json`; select the test environment explicitly rather than assuming automatic activation |
+| Other C#/.NET projects | Existing configuration providers; otherwise use simple configuration files and a single loading entry point |
+| C++ | The project's JSON, TOML, INI or equivalent format, separating shared values and environment differences; use explicit environment selection and loading order without adding a heavyweight configuration framework |
 
-- 显式选择运行环境，不在源码或公共配置中固定启用开发环境。测试使用独立数据库、缓存命名空间、消息资源或隔离替身，不复用开发或生产资源。
-- 使用框架原生加载机制；自行实现 `.env` 或其他配置加载时，在统一启动入口加载公共配置后再加载选定环境文件，环境文件覆盖公共默认值，运行时注入的同名环境变量优先于文件。不要只创建文件而不接入加载流程；采用框架时明确并验证其实际加载顺序及命令行覆盖行为。
-- 应用代码通过统一配置入口读取，禁止各业务模块自行解析配置文件。前端仅暴露可公开的配置；数据库密码、私钥、服务端令牌不得打包进浏览器资源。
-- 非敏感默认值写在配置文件中，禁止在业务代码、环境变量读取调用或注解中另写一套配置兜底值。必填配置缺失时启动失败并指出键名，不输出敏感值；生产环境禁止静默回退到开发配置。
-- 真实密码、令牌、私钥等通过运行时环境变量或密钥服务注入。Spring Boot YAML 可使用 `${变量名}` 占位绑定；其他格式按其加载器支持的方式覆盖，不假设 JSON、INI 等会自动展开占位符。包含真实秘密的文件和本地覆盖文件必须忽略提交；按所选配置机制提供无秘密的示例及所需环境模板，说明键名、用途和环境选择方式。
+- Select the runtime environment explicitly. Do not permanently enable development in source code or shared configuration. Tests use independent databases, cache namespaces, messaging resources or isolated substitutes, not development or production resources.
+- Use native framework loading. For custom `.env` or other loaders, load shared configuration before the selected environment file; environment-specific values override shared defaults, and injected environment variables take precedence over files. Creating files without wiring up loading is insufficient. For frameworks, document and verify actual precedence, including command-line overrides.
+- Application code reads through one configuration entry point; business modules must not parse files independently. Frontends expose public configuration only; database passwords, private keys and server tokens must never enter browser bundles.
+- Put non-sensitive defaults in configuration files. Do not maintain a second set of fallbacks in business code, environment-variable reads or annotations. Missing required settings must fail startup with the key name, without disclosing secret values. Production must not silently fall back to development configuration.
+- Inject real passwords, tokens and private keys through runtime environment variables or a secret service. Spring Boot YAML may bind `${VARIABLE_NAME}` placeholders; other formats use overrides supported by their loaders. Do not assume JSON or INI expands placeholders automatically. Ignore files containing real secrets and local overrides in version control; provide secret-free examples and environment templates documenting keys, purposes and environment selection.
 
-## 禁止硬编码
+## No hardcoded configuration or business magic values
 
-- 地址、端口、数据库连接、文件路径、服务端点、超时、重试次数、开关、限流阈值和可调业务参数等必须放入上述配置文件，并从配置入口读取。
-- 禁止在源码、注解参数、脚本或构建文件中写死环境专属值和敏感信息；改成 `static final` 或常量模块不能替代配置外置。
-- 固定业务状态及有明确业务含义的重复值（如错误码、权限标识和协议值）由对应领域的具名常量或枚举承载并统一引用，禁止散落业务魔法值。不要求提取每个数字或字符串：循环初始值 `0`、空字符串、框架声明性元数据（如路由和配置键名）、测试断言和明确隔离的测试数据按语义判断；其中仍不得出现真实秘密或依赖真实环境的地址。
-- 审查时同时检查配置读取处的默认参数、注解中的默认值和异常兜底路径，防止绕过配置文件。按值的含义判定硬编码，不能仅搜索数字或字符串就声称验证通过。
+- Addresses, ports, database connections, file paths, service endpoints, timeouts, retry counts, switches, rate limits and tunable business parameters belong in configuration and must be read through the configuration entry point.
+- Do not embed environment-specific values or secrets in source code, annotation arguments, scripts or build files. Moving them to `static final` or a constants module does not externalize configuration.
+- Represent fixed business states and repeated values with meaningful domain constants or enums, including error codes, permission identifiers and protocol values. Avoid scattered business magic values. Do not extract every number or string mechanically: interpret loop initializers such as `0`, empty strings, declarative framework metadata such as routes and configuration keys, test assertions and isolated fixtures according to their meaning. None may contain real secrets or addresses dependent on real environments.
+- Review default arguments in configuration reads, annotation defaults and exception fallbacks for bypasses. Determine hardcoding by meaning; searching for numbers or strings alone does not prove compliance.
 
-## 验证
+## Validation
 
-使用无秘密的临时配置验证三个环境的实际加载、覆盖优先级和必填项缺失行为；Spring Boot 验证 profiles，ASP.NET Core 验证环境名称与配置提供程序，其他项目验证实际启动入口的加载器。检查生产模式不会意外采用开发资源，检查前端产物和提交内容不包含秘密。交付时说明验证方式和未验证项。
+Use secret-free temporary configuration to verify loading, override precedence and missing required settings across all three environments. Verify Spring Boot profiles, ASP.NET Core environment names and configuration providers, or the actual startup loader for other projects. Check that production does not accidentally select development resources and that frontend artifacts and committed contents contain no secrets. Report validation methods and unverified items.

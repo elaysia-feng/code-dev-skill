@@ -1,12 +1,12 @@
-# C++ 开发规范
+# C++ Guidelines
 
-本文件适用于 C++ 实现、审查和重构，与主 skill 的通用规则共同执行。
+These rules apply to C++ implementation, review and refactoring alongside the skill's general rules.
 
-- 遵循项目确定的 C++ 标准、工具链和构建系统，不为了应用本规范升级语言版本或改换构建系统。
-- 使用 RAII 管理内存、文件、锁及其他资源；优先值语义与标准容器。需要独占动态所有权时使用 `std::unique_ptr`，仅在确需共享所有权时使用 `std::shared_ptr`；明确裸指针和引用的借用关系及生命周期。
-- 使用 `const` 表达只读约束，固定业务值使用领域所属的具名常量或 `enum class`；可变配置不得放入 `constexpr` 或预处理宏。配置遵循 [配置规范](configuration-guidelines.md)。
-- 不向其他语言套用 Java 的接口和 `impl/` 规则；只有明确的多态契约、可替换边界或测试需求才引入抽象基类。
-- `if`、`else if`、`else` 的分支体必须使用 `{}`，包括单行分支和提前返回。
-- 检查对象生命周期、越界、悬空引用、整数转换和并发访问。析构函数不得传播异常；错误处理遵循项目已有的异常或返回值契约，不静默吞掉错误。
-- 注释使用简体中文；公共 API 文档说明所有权、生命周期、失败条件和并发约束，按项目采用的 Doxygen 等格式书写。
-- 修改后使用项目现有构建和相关测试验证；内存或并发问题在工具链支持时使用相应 sanitizer。现有 skill 的 Python 检查器不扫描 C++，不可当作 C++ 验证证据。
+- Follow the project's C++ standard, toolchain and build system; do not upgrade language versions or replace build systems merely to apply these rules.
+- Use RAII for memory, files, locks and other resources; prefer value semantics and standard containers. Use `std::unique_ptr` for exclusive dynamic ownership and `std::shared_ptr` only when shared ownership is required. Make borrowing and lifetimes explicit for raw pointers and references.
+- Express read-only constraints with `const`; represent fixed business values with domain constants or `enum class`. Do not place mutable configuration in `constexpr` or preprocessor macros. Follow the [configuration guidelines](configuration-guidelines.md).
+- Do not apply Java's interface and `impl/` requirements. Introduce abstract base classes only for actual polymorphic contracts, replacement boundaries or testing needs.
+- Every `if`, `else if` and `else` branch body must use `{}`, including single-line branches and early returns.
+- Check object lifetimes, bounds, dangling references, integer conversions and concurrent access. Destructors must not propagate exceptions. Follow the project's exception or return-value contract; do not silently discard errors.
+- Write code comments in Simplified Chinese. Public API documentation describes ownership, lifetimes, failure conditions and concurrency constraints using the project's Doxygen or equivalent format.
+- Validate changes with the project's build and relevant tests. Use appropriate sanitizers for memory or concurrency issues when supported by the toolchain. The skill's Python checkers do not scan C++; they are not C++ validation evidence.
