@@ -132,7 +132,7 @@
   {
     "query": "公司有自己的规范 skill，code-dev 还要用吗",
     "should_trigger": true,
-    "reason": "The company-standard override is the one exemption in the precedence model and must not be resolved without the skill. Kept in Chinese on purpose: the skill description is in English, so this also covers cross-language triggering."
+    "reason": "Applicable company/project conventions and explicit user requirements take precedence. Kept in Chinese to cover cross-language triggering."
   },
   {
     "query": "帮我解释一下什么是依赖注入",
@@ -143,5 +143,10 @@
     "query": "Change this variable to final",
     "should_trigger": false,
     "reason": "Trivial one-token edit with no structural or documentation consequence."
+  },
+  {
+    "query": "Add table and column comments plus trailing field explanations to init.sql.",
+    "should_trigger": true,
+    "reason": "SQL initialization and schema documentation rules are explicitly covered."
   }
 ]

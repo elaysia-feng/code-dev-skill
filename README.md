@@ -2,7 +2,7 @@
 
 A development standard for **Java/Spring, Python/FastAPI/LangGraph, TypeScript/JavaScript/Node.js, C++ and C#/.NET**. It covers environment-specific configuration, prevention of hardcoded configuration and business magic values, Simplified Chinese code comments, and language/framework-specific structure and validation. Java business interface and TS publishing rules apply only to their respective languages.
 
-The standard is mandatory: it applies to every personal project, and the bar is never lowered to match the existing code style. The only source of exemption is company standards — if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
+The standard applies within the authorized task scope. Explicit user requirements take precedence; company standards and project conventions override this skill where applicable. Existing style alone does not justify violations, but a local task does not authorize a repository-wide migration.
 
 The skill name, the directory name and the explicit trigger name are all `code-dev`: Codex uses `$code-dev`, Claude Code uses `/code-dev`. The package name in `package.json` is temporarily kept as `readability-first-coding` as a compatibility identifier; installation fetches from GitHub and does not depend on a same-named package in the npm registry.
 

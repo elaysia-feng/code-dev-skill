@@ -1,5 +1,7 @@
 # C#/.NET Guidelines
 
+Before creating or moving files, read [cross-language ownership decisions](project-structure.md#cross-language-ownership-decisions) and determine the actual responsibility and domain.
+
 These rules apply to C#/.NET implementation, review and refactoring alongside the skill's general rules.
 
 - Follow the project's target framework, C# version and application type. Do not force ASP.NET Core conventions onto desktop, game or library projects.

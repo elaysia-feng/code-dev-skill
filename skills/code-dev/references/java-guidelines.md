@@ -1,6 +1,6 @@
 # Java Guidelines
 
-These are **mandatory** rules for Java/Spring backend work. They apply regardless of what the target project currently looks like — a project that does not follow them gets changed to follow them, not exempted from this file. A project covered by a company standard is governed by that standard instead; see the precedence rules in [`../SKILL.md`](../SKILL.md).
+These are **mandatory** rules for Java/Spring backend work within the authorized task scope. Apply corrections to affected code and report unrelated structural debt rather than migrating it automatically. Explicit user requirements and applicable project/company standards take precedence; see [`../SKILL.md`](../SKILL.md).
 
 ## Conditional branch braces
 
@@ -123,6 +123,8 @@ The goal is a stable contract boundary for extension/replacement, testing, AOP/i
 ## DTOs
 
 Separate request and response models when the API already uses DTOs:
+
+For multiple domains, subdivide DTO and other layer packages as specified in [project structure](project-structure.md#ordinary-monolithic-spring-project). Do not flatten unrelated domain types or add mapper packages when the actual persistence framework uses a different boundary.
 
 ```text
 dto/

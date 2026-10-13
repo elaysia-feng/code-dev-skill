@@ -1,5 +1,7 @@
 # C++ Guidelines
 
+Before creating or moving files, read [cross-language ownership decisions](project-structure.md#cross-language-ownership-decisions) and determine the actual responsibility and domain.
+
 These rules apply to C++ implementation, review and refactoring alongside the skill's general rules.
 
 - Follow the project's C++ standard, toolchain and build system; do not upgrade language versions or replace build systems merely to apply these rules.
