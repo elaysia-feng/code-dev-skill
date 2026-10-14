@@ -1,10 +1,8 @@
 # Python Guidelines
 
-<<<<<<< HEAD
-适用场景：Python 后端，尤其是 **FastAPI + LangGraph**。新增代码遵循本规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
-=======
 Target context: Python backend, especially **FastAPI + LangGraph**. These are **mandatory** rules within the authorized task scope. Correct affected code and report unrelated structural debt rather than migrating it automatically. Explicit user requirements and applicable project/company standards take precedence; see [`../SKILL.md`](../SKILL.md).
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+
+既有结构调整遵循 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则；已有会话授权或明确任务范围时直接执行，不重复询问。
 
 Structure is defined in [`project-structure.md`](project-structure.md) and is mandatory there too.
 
@@ -88,15 +86,12 @@ class OrderService:
 
 Do not create an ABC/Protocol solely because there is one implementation.
 
-<<<<<<< HEAD
-小项目的简单查询可以直接写在 service 中。出现复用查询、复杂持久化规则、存储替换或隔离测试边界时，可引入 `repositories/`；不为单次 CRUD 添加纯转发层。已有 repository 时必须复用它，不能建立并行数据访问路径。
-
-事务由公开业务入口统一管理；参与同一操作的 service/repository 不各自提交。查询通常无需额外事务包装；避免在事务中等待 LLM、网络调用等慢操作。提交、回滚和资源释放采用项目所用数据库库的机制，并验证失败时能正确回滚。
-=======
-The example assumes `OrderStatus` is the domain-owned enum and this method owns the transaction. It illustrates service ownership, not concurrency safety: when competing writes are possible, follow [runtime boundaries](runtime-boundaries.md) for conditional updates and transaction ownership.
+The example assumes `OrderStatus` is the domain-owned enum and an outer public business entry point owns the transaction; this example only shows the business checks and flush, not transaction begin/commit/rollback. It illustrates service ownership, not concurrency safety: when competing writes are possible, follow [runtime boundaries](runtime-boundaries.md) for conditional updates and transaction ownership.
 
 Do not add `repositories/` merely to complete a template or forward one ORM call. A real persistence contract, replaceable backend, stable shared query responsibility or explicit user request can justify it. Reuse the existing access boundary and migrate affected callers consistently; do not maintain competing direct-ORM and repository paths for the same responsibility.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+
+事务由公开业务入口统一管理；参与同一操作的 service/repository 不各自提交。查询通常无需额外事务包装；避免在事务中等待 LLM、网络调用等慢操作。提交、回滚和资源释放采用项目所用数据库库的机制，并验证失败时能正确回滚。
+
 
 ## Pydantic schemas
 

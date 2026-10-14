@@ -110,11 +110,7 @@
     {
       "id": 22,
       "prompt": "My old project uses a services/ package name; should I migrate it to service/ as you said?",
-<<<<<<< HEAD
       "expected_output": "先说明涉及包路径、导入和调用方的迁移范围，询问是否全量迁移。同意后迁移并验证；不同意时保留 services/，仅新增部分遵循规范，复用旧业务边界且不复制实现。"
-=======
-      "expected_output": "Apply the Java service/ naming rule within the requested migration scope, updating affected references. Explicit user requirements and applicable project/company conventions take precedence; do not expand the request into unrelated restructuring."
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
     },
     {
       "id": 23,
@@ -129,39 +125,12 @@
     {
       "id": 25,
       "prompt": "Our company has its own backend-standard skill already installed in the project; do we still have to follow the code-dev structure?",
-<<<<<<< HEAD
-      "expected_output": "公司规范优先，code-dev 作为参考；没有公司规范时，也必须尊重用户对既有结构迁移范围的选择。"
-=======
       "expected_output": "Applicable company standards take precedence over code-dev; explicit user requirements also override the skill. Apply changes within the authorized scope, not as a repository-wide migration."
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
     },
     {
       "id": 26,
       "prompt": "A microservice has a shared-kernel module that holds common code; does it need to be renamed?",
-<<<<<<< HEAD
-      "expected_output": "新建共享模块采用 common-api/；已有 shared-kernel 的重命名先询问全量迁移选择，不同意则保留并复用，不能自动重命名或另建重复模块。"
-    },
-    {
-      "id": 27,
-      "prompt": "给这个 Vue TypeScript 项目新增订单列表和提交流程，没要求加注释。",
-      "expected_output": "加载前端及注释规范；按项目框架组织页面、业务组件、API 和局部状态，不套 npm 库发布规则。提交存在多个阶段时写真实流程编号，并验证失败和重复提交行为。"
-    },
-    {
-      "id": 28,
-      "prompt": "Python 的 _submit 函数只有几行，依次校验、付款、保存、通知，要不要编号？",
-      "expected_output": "需要；短函数和私有函数不因行数或可见性豁免多阶段编号。无真实子步骤时仅用 1.、2. 等同级编号，不强凑 1.1。"
-    },
-    {
-      "id": 29,
-      "prompt": "check_comments.py 返回 0，但有 missing-step-comments WARNING，可以说注释检查通过吗？",
-      "expected_output": "不能；默认返回 0 仅表示无 ERROR。必须人工判断并修正缺失阶段，或提供适用豁免及源码依据；--fail-on warning 可让未处理 WARNING 阻断。"
-    },
-    {
-      "id": 30,
-      "prompt": "给 Next.js App Router 的订单页新增功能，要不要改成你说的 src/pages？",
-      "expected_output": "保留框架 app/ 文件路由约定，不机械迁移到 pages/；业务模块按功能组织，共享模块仅在实际复用时创建。"
-=======
-      "expected_output": "Inspect the shared-kernel contents, consumers and project conventions first. Do not rename it merely because it is shared. A genuine new API/event contract module may use common-api, but infrastructure and domain logic do not become API contracts through renaming; migrations require a task-related reason."
+      "expected_output": "Inspect the shared-kernel contents, consumers and project conventions first. Do not rename it merely because it is shared. A genuine new API/event contract module may use common-api, but infrastructure and domain logic do not become API contracts through renaming; migrations require a task-related reason. Existing structural migration follows the entrypoint migration choice; reuse existing boundaries and do not duplicate modules."
     },
     {
       "id": 27,
@@ -212,7 +181,31 @@
       "id": 36,
       "prompt": "Use inline MySQL COMMENT syntax in a PostgreSQL migration.",
       "expected_output": "Use PostgreSQL COMMENT ON TABLE/COLUMN and retain trailing -- explanations on definitions; do not generate invalid MySQL-specific syntax. Report execution limitations."
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+    },
+    {
+      "id": 37,
+      "prompt": "给这个 Vue TypeScript 项目新增订单列表和提交流程，没要求加注释。",
+      "expected_output": "加载前端及注释规范；按项目框架组织页面、业务组件、API 和局部状态，不套 npm 库发布规则。提交存在多个阶段时写真实流程编号，并验证失败和重复提交行为。"
+    },
+    {
+      "id": 38,
+      "prompt": "Python 的 _submit 函数只有几行，依次校验、付款、保存、通知，要不要编号？",
+      "expected_output": "需要；短函数和私有函数不因行数或可见性豁免多阶段编号。无真实子步骤时仅用 1.、2. 等同级编号，不强凑 1.1。"
+    },
+    {
+      "id": 39,
+      "prompt": "check_comments.py 返回 0，但有 missing-step-comments WARNING，可以说注释检查通过吗？",
+      "expected_output": "不能；默认返回 0 仅表示无 ERROR。必须人工判断并修正缺失阶段，或提供适用豁免及源码依据；--fail-on warning 可让未处理 WARNING 阻断。"
+    },
+    {
+      "id": 40,
+      "prompt": "给 Next.js App Router 的订单页新增功能，要不要改成你说的 src/pages？",
+      "expected_output": "保留框架 app/ 文件路由约定，不机械迁移到 pages/；业务模块按功能组织，共享模块仅在实际复用时创建。"
+    },
+    {
+      "id": 41,
+      "prompt": "本会话已同意迁移 services/ 为 service/，请执行，不再重复确认。",
+      "expected_output": "直接完成已授权的包迁移并更新调用方，验证相关导入、构建和行为；不重复询问，不扩大到其他模块。"
     }
   ]
 }

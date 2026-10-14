@@ -1,15 +1,12 @@
 # Project Structure
 
-<<<<<<< HEAD
-本文目录规范适用于新增代码、目录和模块；既有项目的全量迁移必须先按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则询问用户。用户同意后全量迁移；不同意则保留既有结构，仅新增部分遵循本规范。标记 `optional` 的目录仅在应用确有需要时创建，不照搬空目录模板。
-=======
 ## Language and application boundaries
 
 The Java/Spring and FastAPI/LangGraph layouts below apply only to those application types, not plain Java tools, other Python applications, TS/JS, C++ or C#. TS/JS follows its framework's entry points and directory conventions; npm packages also follow the package publishing guidelines.
 
 C++ preserves the existing build system and target boundaries: new projects may use `src/` and `tests/`; create `include/` only for externally consumed public headers, keeping private headers near implementations. C# preserves solution/project boundaries: organize `.csproj` and test projects by application type, and follow the entry-point conventions of ASP.NET Core, desktop applications or libraries. Do not split projects merely to standardize a directory tree or apply Java's `service/impl/` pattern. See [configuration guidelines](configuration-guidelines.md) for formats and environment layouts.
 
-Layer responsibilities and applicable naming rules are mandatory; example trees show their intended organization, not a requirement to create every illustrated file. Create only needed directories. Correct affected structure within the task's scope, and report unrelated debt instead of automatically migrating the whole project. Entries marked `optional` are prohibited unless actually needed.
+Layer responsibilities and applicable naming rules are mandatory; example trees show their intended organization, not a requirement to create every illustrated file. Create only needed directories. Existing structure changes follow the migration rule in [`../SKILL.md`](../SKILL.md); report unrelated debt instead of automatically migrating the whole project. Entries marked `optional` are prohibited unless actually needed.
 
 Before reorganizing, identify the application type, existing framework boundaries and actual domains. Prefer one consistent organization per application: layer-first with domain subdivisions, or an existing domain-first layout containing the same responsibilities. Do not introduce a competing root layout merely to resemble an example. A package name or file suffix is not evidence of layer ownership.
 
@@ -27,7 +24,6 @@ Apply these responsibilities using the project's native names, not a universal `
 | Application startup and dependency wiring | Composition/lifecycle entry point |
 
 C# `Models` and TS `models` may be ambiguous: inspect persistence attributes/mappings, serialization and callers rather than assuming every type belongs there. Browser TS types must not import server persistence implementations. C++ public headers belong in the public include tree only when they are part of the supported external API; private DTOs/helpers remain with their owning target/domain. Do not expose an internal type merely to fit a directory template.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 ## Java Backend
 
@@ -64,7 +60,7 @@ Responsibilities:
 - `config/` — framework/infrastructure configuration.
 - `exception/` — project/domain exceptions when they have clear ownership.
 
-新增包使用上述单数名称 `service/`。既有 `services/` 仅在用户同意全量迁移后改为 `service/`。
+新增包使用上述单数名称 `service/`。既有 `services/` 的改名遵循入口的迁移选择；已明确授权局部迁移时按确认范围执行。
 
 When several domains or substantial modules exist, subdivide the relevant layer by domain rather than accumulating unrelated files: for example `controller/order/`, `dto/request/order/`, `dto/response/order/`, `service/order/impl/`, `mapper/order/` and `entity/order/`. A cohesive single-domain module may keep a shallow layout. Existing domain-first layouts may place these responsibilities under `order/`; preserve that consistent ownership rather than adding a second layout. The business interface and implementation remain paired under their owner.
 
@@ -76,31 +72,149 @@ When a multi-module Maven project separates business logic into modules such as 
 
 ```text
 middleware-arena-community/
+├── community.biz/
+│   ├── src/main/java/com/mware/community/biz/
+│   │   ├── comment/
+│   │   │   ├── impl/
+│   │   │   │   ├── CommentCacheImpl.java
+│   │   │   │   └── CommentServiceImpl.java
+│   │   │   ├── CommentCache.java
+│   │   │   └── CommentService.java
+│   │   ├── config/
+│   │   │   ├── CommunityScheduleConfig.java
+│   │   │   ├── RabbitFavoriteConfig.java
+│   │   │   ├── RabbitLikeConfig.java
+│   │   │   └── RedisConfig.java
+│   │   ├── consumer/
+│   │   │   ├── impl/
+│   │   │   │   ├── FavoritePersistenceConsumerImpl.java
+│   │   │   │   ├── LikePersistenceConsumerImpl.java
+│   │   │   │   └── LikeStatisticsConsumerImpl.java
+│   │   │   ├── FavoritePersistenceConsumer.java
+│   │   │   ├── LikePersistenceConsumer.java
+│   │   │   └── LikeStatisticsConsumer.java
+│   │   ├── favorite/
+│   │   │   ├── impl/
+│   │   │   │   ├── FavoriteRedisStoreImpl.java
+│   │   │   │   ├── FavoriteServiceImpl.java
+│   │   │   │   └── FavoriteStreamRelayImpl.java
+│   │   │   ├── FavoriteRedisStore.java
+│   │   │   ├── FavoriteService.java
+│   │   │   └── FavoriteStreamRelay.java
+│   │   ├── follow/
+│   │   │   ├── impl/
+│   │   │   │   └── FollowServiceImpl.java
+│   │   │   └── FollowService.java
+│   │   ├── like/
+│   │   │   ├── impl/
+│   │   │   │   ├── LikeRedisStoreImpl.java
+│   │   │   │   ├── LikeServiceImpl.java
+│   │   │   │   └── LikeStreamRelayImpl.java
+│   │   │   ├── LikeRedisStore.java
+│   │   │   ├── LikeService.java
+│   │   │   └── LikeStreamRelay.java
+│   │   ├── outbox/
+│   │   │   ├── impl/
+│   │   │   │   └── OutboxRelayImpl.java
+│   │   │   └── OutboxRelay.java
+│   │   ├── post/
+│   │   │   ├── impl/
+│   │   │   │   └── PostServiceImpl.java
+│   │   │   └── PostService.java
+│   │   └── search/
+│   │       ├── impl/
+│   │       │   └── SearchServiceImpl.java
+│   │       └── SearchService.java
+│   └── pom.xml
+├── community.domain/
+│   ├── src/main/java/com/mware/community/domain/
+│   │   ├── Comment.java
+│   │   ├── CommunityPost.java
+│   │   ├── ConsumerEvent.java
+│   │   ├── EventOutbox.java
+│   │   ├── Follow.java
+│   │   ├── PostFavorite.java
+│   │   └── PostLike.java
+│   └── pom.xml
 ├── community.dto/
+│   ├── src/main/java/com/mware/community/dto/
+│   │   ├── message/
+│   │   │   ├── FavoriteEvent.java
+│   │   │   └── LikeEvent.java
+│   │   ├── request/
+│   │   │   ├── CommentRequest.java
+│   │   │   └── CreatePostRequest.java
+│   │   └── response/
+│   │       ├── CommentResponse.java
+│   │       ├── FavoriteStatusResponse.java
+│   │       ├── FollowStatusResponse.java
+│   │       ├── LikeStatusResponse.java
+│   │       └── PostResponse.java
+│   └── pom.xml
+├── community.mapper/
+│   ├── src/main/java/com/mware/community/mapper/
+│   │   ├── CommentMapper.java
+│   │   ├── CommunityPostMapper.java
+│   │   ├── ConsumerEventMapper.java
+│   │   ├── EventOutboxMapper.java
+│   │   ├── FollowMapper.java
+│   │   ├── PostFavoriteMapper.java
+│   │   └── PostLikeMapper.java
+│   └── pom.xml
+├── community.test/
+│   ├── src/test/java/com/mware/community/test/
+│   │   └── CommunityApiSmokeTest.java
+│   └── pom.xml
 ├── community.web/
-└── community.biz/
-    └── src/main/java/com/mware/community/biz/
-        ├── favorite/
-        │   ├── FavoriteService.java
-        │   ├── FavoriteRedisStore.java
-        │   ├── FavoriteStreamRelay.java
-        │   └── impl/
-        │       ├── FavoriteServiceImpl.java
-        │       ├── FavoriteRedisStoreImpl.java
-        │       └── FavoriteStreamRelayImpl.java
-        ├── follow/
-        │   ├── FollowService.java
-        │   └── impl/
-        │       └── FollowServiceImpl.java
-        └── like/
-            ├── LikeService.java
-            ├── LikeRedisStore.java
-            ├── LikeStreamRelay.java
-            └── impl/
-                ├── LikeServiceImpl.java
-                ├── LikeRedisStoreImpl.java
-                └── LikeStreamRelayImpl.java
+│   ├── .omc/state/
+│   │   ├── sessions/a1e40752-a9cf-45d2-8898-6baf0fe31580/
+│   │   │   └── pre-tool-advisory-throttle.json
+│   │   └── idle-notif-cooldown.json
+│   ├── logs/
+│   │   ├── .gitignore
+│   │   ├── .gitkeep
+│   │   └── community-service.log
+│   ├── src/main/
+│   │   ├── java/com/mware/community/
+│   │   │   ├── config/
+│   │   │   │   └── MybatisPlusConfig.java
+│   │   │   ├── controller/
+│   │   │   │   └── CommunityController.java
+│   │   │   └── CommunityApplication.java
+│   │   └── resources/
+│   │       ├── .omc/state/sessions/0be9f647-aeda-4ea6-998f-45f95c4b391f/
+│   │       │   └── pre-tool-advisory-throttle.json
+│   │       ├── application-sharding.yml
+│   │       └── application.yml
+│   └── pom.xml
+├── sql/
+│   ├── init.sql
+│   ├── init_like_shards.sql
+│   ├── upgrade_favorite_state.sql
+│   ├── upgrade_like_final.sql
+│   └── upgrade_like_shards_to_state.sql
+├── .gitignore
+├── Dockerfile
+├── README.md
+└── pom.xml
 ```
+
+
+以上示例按社区服务的实际源码展开，覆盖 Maven 聚合配置、业务模块、启动入口、资源、测试和 SQL 脚本；其中业务接口与实现仍归属各自领域。
+
+| 模块 | 职责 | 依赖边界 |
+|---|---|---|
+| `community.dto` | 请求、响应和消息契约 | 不依赖业务实现、Mapper 或 Web |
+| `community.domain` | 持久化实体与领域定义 | 不依赖 Web 或业务实现 |
+| `community.mapper` | MyBatis 数据访问；复杂 SQL 确有需要时放在 `src/main/resources/mapper/` | 使用 `domain`，不调用业务层 |
+| `community.biz` | 业务接口与实现、Redis 状态、消息消费及事件投递 | 使用 DTO、领域定义和 Mapper，不依赖 Web |
+| `community.web` | Spring Boot 启动、Controller、Web 配置和应用配置 | 调用业务接口，使用 DTO；Controller 不直接调用 Mapper |
+| `community.test` | 跨模块 API 冒烟或集成测试 | 测试代码放在 `src/test/`；仅测试依赖应用模块 |
+| `community.feign`（按需） | 对外提供社区服务的 Feign 调用契约 | 使用 DTO，不依赖 Web、Biz 或 Mapper |
+
+截图中的 `advert.fegin` 若承担 Feign 契约职责，新建对应模块使用 `community.feign`；保留既有模块名，不自动重命名。当前社区服务没有该模块，不为凑齐截图创建空模块。需要时添加 `community.feign/pom.xml` 和 `src/main/java/com/mware/community/feign/CommunityClient.java`，并注册到父 POM。
+
+各子模块保留自己的 `pom.xml`；根 `pom.xml` 使用 `packaging=pom` 聚合实际模块。`web` 负责应用打包，DTO、Domain、Mapper 和 Biz 作为库模块。独立测试模块不替代各模块按需编写的单元测试。配置文件、Mapper XML、Lua 脚本仅在确有需要时放入所属模块的 `src/main/resources/`，不预建空目录。
 
 Rules:
 
@@ -124,11 +238,9 @@ project-parent/
 └── common-api/             # optional; only if the project genuinely needs one
 ```
 
-<<<<<<< HEAD
-新建共享模块使用 `common-api/`。既有 `base-service`、`common`、`platform-core` 或 `shared-kernel` 仅在用户同意全量迁移后改为 `common-api/`；不同意时保留并复用已有模块，不另建重复模块。
-=======
 For a new shared API/event contract module, use `common-api/` unless project conventions specify otherwise. Do not rename `common`, `platform-core`, `shared-kernel` or another existing module merely because it is shared: inspect its contents and consumers first. Infrastructure implementation and domain logic do not become API contracts through renaming. A module migration needs a task-related reason and updates to all affected dependencies.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+
+既有模块迁移须遵循入口的迁移选择；不得把基础设施或领域实现仅通过改名变成 API 契约。
 
 If an individual microservice is a normal Spring module, use its `service/` + `impl/` business structure. If the Maven project instead separates a dedicated `*.biz` module, use the `biz` layout described above.
 
@@ -144,7 +256,6 @@ src/
     ├── __init__.py
     ├── main.py
     ├── api/
-<<<<<<< HEAD
     │   └── v1/                    # optional; API 确需版本化时创建
     ├── core/
     │   ├── config.py
@@ -158,22 +269,7 @@ src/
     └── memory/                    # optional
 ```
 
-Do **not** create `utils/`, `common/`, `base/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need. 既有包仅在用户同意全量迁移后调整到上述布局。
-=======
-    │   └── v1/                    # optional; only when API versioning exists
-    ├── core/
-    │   ├── config.py
-    │   ├── llm.py                 # optional; only when LLM integration exists
-    │   └── middleware.py          # optional
-    ├── graphs/                    # optional; only when graph workflows exist
-    ├── schemas/
-    ├── services/
-    ├── models/                    # optional; only when persistence mappings exist
-    └── memory/                    # optional
-```
-
-Do **not** create `utils/`, `common/`, `base/`, or a generic `core/langgraph/` just because they appear in another template. Add them only for a concrete need. Apply structural corrections to the affected domain within the authorized scope.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+Do **not** create `utils/`, `common/`, `base/`, or a generic `core/langgraph/` just because they appear in another template. Add them only when the project has a concrete need. 既有包的调整遵循入口的迁移选择，不扩大已确认范围。
 
 Typical repository-root files:
 
@@ -316,9 +412,6 @@ Apply the same domain-ownership principle to `models/` when several domains or m
 
 Non-agent application/business logic such as database operations, external service calls, document ingestion, or orchestration outside the graph.
 
-<<<<<<< HEAD
-小项目可以由 service 直接进行简单数据库访问。有复用查询、复杂持久化规则、存储替换或需要隔离测试的明确边界时，可新增 `repositories/`；不要为单次 CRUD 添加纯转发层。已有 repository 时必须复用该边界，不能另建并行数据访问路径。事务由业务入口管理，repository 不自行提交会拆散同一业务操作的事务。
-=======
 **Organize subpackages by business domain; do not keep all business files flat under `services/`.** When multiple independent domains exist, or one domain has multiple modules with distinct responsibilities, create meaningful subpackages such as `services/pay/` and `services/order/`. Keep each domain's implementations and private collaborators together.
 
 For example, use this layout when payment and refund logic exist; create the illustrated directories only for actual responsibilities:
@@ -346,7 +439,8 @@ API handlers call service entry points and exchange schema types. Services may u
 Keep application creation, router registration, dependency-provider wiring and job startup at the composition/lifecycle boundary. A domain scheduler may live beside its service, but importing the package must not start it. Keep tests separate from runtime application modules and group them by the affected domain or boundary without requiring a test file for every source file.
 
 Do not keep both `reminder.py` and a `reminder/` package under the same parent as competing owners. When converting a module to a package, update references and remove the obsolete owner after checking usages. A structure change must preserve public imports or explicitly account for their compatibility, router registrations and resource/migration discovery.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+
+事务由公开业务入口统一管理，repository 不独立提交同一业务操作。普通查询通常无需事务包装；避免在事务中等待慢速外部调用。
 
 ### `models/`
 
@@ -381,7 +475,7 @@ src/
 └── styles/                # optional; 全局样式和设计变量
 ```
 
-小页面可直接组织在页面文件及相邻模块中；功能变复杂时再聚合到 `features/<功能>/`。功能内部不得直接依赖其他功能的私有组件；共享内容须有明确契约。不要同时在全局与功能目录中维护两套请求、状态或类型。既有结构迁移仍须先询问用户。
+小页面可直接组织在页面文件及相邻模块中；功能变复杂时再聚合到 `features/<功能>/`。功能内部不得直接依赖其他功能的私有组件；共享内容须有明确契约。不要同时在全局与功能目录中维护两套请求、状态或类型。既有结构迁移遵循入口的迁移选择；已有会话授权时不重复询问。
 
 ## Python 布局参考
 
@@ -402,5 +496,5 @@ Example lightweight export:
 from .retrieve import retrieve
 from .generate_answer import generate_answer
 
-    __all__ = ["retrieve", "generate_answer"]
+__all__ = ["retrieve", "generate_answer"]
 ```

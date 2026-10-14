@@ -1,16 +1,8 @@
 ---
 name: code-dev
 description: >-
-<<<<<<< HEAD
-  用于 Java/Spring、Python/FastAPI/LangGraph 和 TypeScript 前端/Node.js 项目的实现、审查与重构。
-  规范项目结构、Java 业务接口、简体中文注释和流程编号，并按需核对 TypeScript npm 包发布。
-=======
-  Development standard for Java/Spring, Python/FastAPI/LangGraph,
-  TypeScript/JavaScript/Node.js, C++ and C#/.NET projects, covering framework-native
-  environment configuration, prevention of hardcoded configuration and business magic
-  values, language-specific structure, Simplified Chinese comments and TS publishing.
-  For implementation, review and refactoring.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+  用于 Java/Spring、Python/FastAPI/LangGraph、TypeScript/JavaScript/Node.js、C++ 和 C#/.NET 项目的实现、审查与重构。
+  规范项目结构、环境配置、业务常量、SQL 文档和简体中文注释，并按需核对 TypeScript npm 包发布。
 license: MIT
 ---
 
@@ -20,19 +12,6 @@ license: MIT
 
 ## Priority
 
-<<<<<<< HEAD
-1. Correctness.
-2. **Company standards**: if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
-3. Explicit user requirements — they define the scope of the task, including the migration choice below; this skill never authorizes changes beyond that scope.
-4. The mandatory rules of this standard.
-5. The simplest, clearest implementation.
-
-Company standards take precedence; preservation of existing structure follows the migration choice below. "The existing code is written this way" does not exempt new code from this standard.
-
-## 既有项目迁移
-
-发现既有项目结构不符合本规范时，先说明拟迁移的范围，再询问用户是否全量迁移。用户同意后直接完成全量迁移，并验证相关导入、构建和运行行为；用户不同意时，仅新增代码、目录和模块遵循本规范，保留既有结构，不顺带搬移、重命名或重构既有代码。新增代码与既有结构衔接时复用已有业务与数据访问边界，不复制一套实现。用户尚未答复时，不开始既有结构迁移；当前会话已明确同意或拒绝的，不重复询问。以下所有既有结构迁移条款均受此规则约束。
-=======
 1. Explicit user requirements and authorized task scope.
 2. Correctness and preservation of agreed contracts.
 3. **Company standards**: if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
@@ -40,17 +19,16 @@ Company standards take precedence; preservation of existing structure follows th
 5. The simplest, clearest implementation.
 
 Explicit user requirements override this skill. Existing style alone does not justify a violation; apply corrections within the authorized scope rather than turning a local task into a repository-wide migration.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+
+## 既有项目迁移
+
+发现既有结构不符合规范且迁移范围尚未确定时，先说明拟迁移的范围，再询问是否全量迁移。用户同意后在确认范围内完成迁移，验证导入、构建及相关运行行为；用户不同意时保留既有结构，仅新增部分遵循规范，复用已有边界，不另建重复实现。当前任务已明确要求结构迁移或当前会话已给出选择时，直接按授权范围执行，不重复询问；不顺带迁移无关代码。所有参考文档的结构调整均受此规则约束。
 
 ## Mandatory rules
 
 These must be enforced for implementation, review and refactoring:
 
-<<<<<<< HEAD
-- **Project structure must follow [`references/project-structure.md`](references/project-structure.md)**; existing structures are migrated only within the user's migration choice above.
-=======
-- **Project structure must follow [`references/project-structure.md`](references/project-structure.md)** for the relevant language and application type. Correct affected structure within the task scope; report unrelated structural debt instead of migrating it automatically.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+- **Project structure must follow [`references/project-structure.md`](references/project-structure.md)** for the relevant language and application type; existing structure changes follow the migration rule above.
 - **Java business components must always be `interface + impl/`**; a single implementation is not a reason to skip the interface.
 - 新增和修改的说明性注释使用简体中文；不顺带翻译未修改的历史注释。多阶段方法按真实流程使用 `1.`、`1.1` 等编号，私有方法和短方法也按业务阶段判断，不能仅因行数少而省略。
 - **Source files must always be UTF-8**, with or without a BOM. Neither checker can analyse a file it cannot decode, so a non-UTF-8 source file is reported and rejected rather than quietly passed over.
@@ -88,18 +66,13 @@ All reference rules, including package or module renaming, inherit the priority 
 | Java/Spring backend | [`references/java-guidelines.md`](references/java-guidelines.md) |
 | Java microservice boundaries | [`references/microservice-guidelines.md`](references/microservice-guidelines.md) and the Java guidelines |
 | Python, FastAPI or LangGraph | [`references/python-guidelines.md`](references/python-guidelines.md) |
-<<<<<<< HEAD
 | TypeScript 前端应用（React/Vue/Next.js 等） | [`references/frontend-guidelines.md`](references/frontend-guidelines.md) 与结构规范中的前端章节 |
-| A new project, or adjusting directories/modules | [`references/project-structure.md`](references/project-structure.md) |
-| 新增、修改或审查 Java/Python/TypeScript 代码（即使用户没提注释） | 必须加载 [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md) |
-=======
 | TypeScript/JavaScript application or Node.js implementation | [`references/typescript-guidelines.md`](references/typescript-guidelines.md) |
 | C++ implementation, review or refactoring | [`references/cpp-guidelines.md`](references/cpp-guidelines.md) |
 | C#/.NET implementation, review or refactoring | [`references/csharp-guidelines.md`](references/csharp-guidelines.md) |
 | Creating or moving files, determining type/module ownership, or adjusting project structure | [`references/project-structure.md`](references/project-structure.md) |
 | Creating or modifying SQL initialization scripts, migrations or table definitions | [`references/sql-guidelines.md`](references/sql-guidelines.md) |
-| Adding or changing Java, Python, TypeScript/JavaScript, C++ or C# comments | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md); use the language's own comment syntax |
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+| Implementing, changing or reviewing Java, Python, TypeScript/JavaScript, C++ or C# code, even when comments were not requested | [`references/code-comment-guidelines.md`](references/code-comment-guidelines.md); use the language's own comment syntax |
 | Deciding what a specific comment should actually say | [`references/code-comment-examples.md`](references/code-comment-examples.md) |
 | Creating or maintaining a TypeScript npm package, its export entry point or its publish contents | [`references/typescript-package-guidelines.md`](references/typescript-package-guidelines.md) |
 | Extracting a boundary, or when the organisation is unclear | Read only the relevant examples in [`references/examples.md`](references/examples.md) |
@@ -124,13 +97,8 @@ Java business components are automatically exempt from the single-implementation
 After changing Java/Python files:
 
 ```sh
-<<<<<<< HEAD
 python <skill-dir>/scripts/check_comments.py <changed-files> --fail-on warning
 python <skill-dir>/scripts/check_comments.py --staged --fail-on warning
-=======
-python <skill-dir>/scripts/check_comments.py <changed-files>
-python <skill-dir>/scripts/check_comments.py --staged   # Check Git staged contents
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 ```
 
 Use `--staged` when the working tree and the index differ — it reads what would actually be committed, not what happens to be on disk.
@@ -141,10 +109,8 @@ Use `--staged` when the working tree and the index differ — it reads what woul
 
 可选 Git hook：将 `scripts/pre-commit-check.sh` 合并到现有 hook，不覆盖。它检查暂存内容；设置 `READABILITY_FIRST_STRICT=1` 时两个检查器的 WARNING 都会阻断，也可单独设置 `COMMENT_FAIL_ON=warning`。默认只阻断注释 ERROR 和读取失败；不能把 hook 放行当成规范通过。
 
-<<<<<<< HEAD
 完成前逐个核对本次新增或修改的函数：公开契约是否需要文档、多阶段流程是否有编号、父子层级是否真实、关键边界/失败原因是否说明。覆盖短函数和私有函数；简单访问器、单步函数、纯转发可以豁免。说明 WARNING 的处理与未验证部分，不用无意义注释消除提示。
-=======
+
 Before finishing, confirm that the requirements have been delivered, that the mandatory rules have been checked one by one, and state what has not yet been verified.
 
 Configuration, hardcoding and Java annotation rules require manual review; existing checkers do not cover them. For configuration changes, also verify development/test/production selection, overrides, missing required values and prevention of production fallback to development configuration. Use no real production credentials or connections during validation.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f

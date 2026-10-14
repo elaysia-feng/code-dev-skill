@@ -1,8 +1,5 @@
 # Java Guidelines
 
-<<<<<<< HEAD
-本文适用于 Java/Spring 后端。新增代码遵循本规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
-=======
 These are **mandatory** rules for Java/Spring backend work within the authorized task scope. Apply corrections to affected code and report unrelated structural debt rather than migrating it automatically. Explicit user requirements and applicable project/company standards take precedence; see [`../SKILL.md`](../SKILL.md).
 
 ## Conditional branch braces
@@ -44,7 +41,8 @@ Use applicable declarative framework annotations and verify they work, avoiding 
 - Use security, caching, asynchronous execution and retry annotations when needed and when the dependencies already exist; do not add unrelated dependencies or change business semantics merely to use annotations.
 - Use `@Override` for interface implementations and superclass overrides. Use existing code-generation annotations within their intended scope; do not add dependencies to save a few lines.
 - Verify component scanning, feature enablement, validation dependencies and proxy call paths. Same-class self-invocation alone does not activate proxy-based transaction, async or caching annotations. Do not claim functionality by annotating methods the proxy cannot intercept.
->>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
+
+既有结构调整遵循 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则；已有会话授权或明确任务范围时直接执行，不重复询问。
 
 ## Business interface rule
 
@@ -93,7 +91,7 @@ com.example.order/
 └── entity/
 ```
 
-新增包使用上述单数名称（`service/`、`mapper/`、`entity/`）。既有 `services/` 仅在用户同意全量迁移后改为 `service/`；不同意时保留已有包及其调用关系。
+新增包使用上述单数名称（`service/`、`mapper/`、`entity/`）。既有 `services/` 的改名遵循入口的迁移选择；已授权局部迁移时按确认范围执行，不同意时保留已有包及其调用关系。
 
 ### Required conventions
 
