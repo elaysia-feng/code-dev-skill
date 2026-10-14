@@ -110,7 +110,11 @@
     {
       "id": 22,
       "prompt": "My old project uses a services/ package name; should I migrate it to service/ as you said?",
+<<<<<<< HEAD
       "expected_output": "先说明涉及包路径、导入和调用方的迁移范围，询问是否全量迁移。同意后迁移并验证；不同意时保留 services/，仅新增部分遵循规范，复用旧业务边界且不复制实现。"
+=======
+      "expected_output": "Apply the Java service/ naming rule within the requested migration scope, updating affected references. Explicit user requirements and applicable project/company conventions take precedence; do not expand the request into unrelated restructuring."
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
     },
     {
       "id": 23,
@@ -120,16 +124,21 @@
     {
       "id": 24,
       "prompt": "Simplify this service into a single class with no interface - the team convention is to skip interfaces.",
-      "expected_output": "State the conflict: personal projects must follow this standard, and Java business components are always interface + impl/ - a team habit is never an exemption. The method body may be simplified, but the contract layer must be kept; if the project really is covered by a company-standard skill, the company standard wins."
+      "expected_output": "Explain the conflict with the default Java interface rule, then honor the explicit request and applicable team conventions within scope. Update affected callers and verify behavior; do not insist on retaining the interface."
     },
     {
       "id": 25,
       "prompt": "Our company has its own backend-standard skill already installed in the project; do we still have to follow the code-dev structure?",
+<<<<<<< HEAD
       "expected_output": "公司规范优先，code-dev 作为参考；没有公司规范时，也必须尊重用户对既有结构迁移范围的选择。"
+=======
+      "expected_output": "Applicable company standards take precedence over code-dev; explicit user requirements also override the skill. Apply changes within the authorized scope, not as a repository-wide migration."
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
     },
     {
       "id": 26,
       "prompt": "A microservice has a shared-kernel module that holds common code; does it need to be renamed?",
+<<<<<<< HEAD
       "expected_output": "新建共享模块采用 common-api/；已有 shared-kernel 的重命名先询问全量迁移选择，不同意则保留并复用，不能自动重命名或另建重复模块。"
     },
     {
@@ -151,6 +160,59 @@
       "id": 30,
       "prompt": "给 Next.js App Router 的订单页新增功能，要不要改成你说的 src/pages？",
       "expected_output": "保留框架 app/ 文件路由约定，不机械迁移到 pages/；业务模块按功能组织，共享模块仅在实际复用时创建。"
+=======
+      "expected_output": "Inspect the shared-kernel contents, consumers and project conventions first. Do not rename it merely because it is shared. A genuine new API/event contract module may use common-api, but infrastructure and domain logic do not become API contracts through renaming; migrations require a task-related reason."
+    },
+    {
+      "id": 27,
+      "prompt": "A C# EF entity and a read-only Reminder service output both live in Models. Where should they go?",
+      "expected_output": "Inspect mapping and callers. Keep the EF entity in persistence ownership and place the output under the domain DTO/contract owner. Do not impose Python schemas names or interfaces on every C# class."
+    },
+    {
+      "id": 28,
+      "prompt": "A Node.js service returns a read-only object; put it beside its ORM entity because both have the same fields.",
+      "expected_output": "Distinguish persistence mapping from output contract using definitions and callers. Preserve domain contract ownership, validate external data at runtime and do not expose server ORM dependencies to browser types."
+    },
+    {
+      "id": 29,
+      "prompt": "A C++ service has a private result struct. Move it into include/ to make the tree complete.",
+      "expected_output": "Keep the internal type with its target/domain unless it is an actual supported public API. Do not expose internal DTOs or create Java-style interface/impl pairs for symmetry."
+    },
+    {
+      "id": 30,
+      "prompt": "A small Python domain has one cohesive DTO and one service file. Create request/, response/, input/, output/ and impl/ folders.",
+      "expected_output": "Keep the cohesive layout unless independent roles need separation; create no empty role packages or Java-style impl. An internal domain value object is not automatically a schema."
+    },
+    {
+      "id": 31,
+      "prompt": "Python payment and reminder each have several service modules and HTTP input/output types. Organize their files.",
+      "expected_output": "Group services and schemas by domain, separate actual request/response roles, group routes under any existing version boundary, and update imports and registrations without inventing API versions."
+    },
+    {
+      "id": 32,
+      "prompt": "Add a repository boundary for shared complex persistence queries and a replaceable backend.",
+      "expected_output": "A real persistence contract justifies the requested repository. Reuse or consistently migrate the existing access boundary; do not refuse merely because repositories is absent from the template or leave competing access paths."
+    },
+    {
+      "id": 33,
+      "prompt": "Create development, test and production configuration for Spring Boot and ASP.NET Core.",
+      "expected_output": "Use application YAML/profiles and appsettings/environment providers respectively; verify actual loading and overrides with secret-free configuration and never silently fall back to development in production."
+    },
+    {
+      "id": 34,
+      "prompt": "Rename api/v1 to api/v2 while old clients still use v1.",
+      "expected_output": "Retain required v1 routes and add only necessary v2 contract adapters/DTOs, reuse unchanged business logic, verify both routes and explain that deploying the same application activates source changes; no deployment is implied."
+    },
+    {
+      "id": 35,
+      "prompt": "Create MySQL init.sql for lint_reports with status and start/end timestamps.",
+      "expected_output": "Include a Chinese table-purpose source comment and table metadata COMMENT; every column, including timestamps, has metadata COMMENT plus a trailing -- explanation with commas before the comment. Check dialect/version and distinguish inspection from executed DDL."
+    },
+    {
+      "id": 36,
+      "prompt": "Use inline MySQL COMMENT syntax in a PostgreSQL migration.",
+      "expected_output": "Use PostgreSQL COMMENT ON TABLE/COLUMN and retain trailing -- explanations on definitions; do not generate invalid MySQL-specific syntax. Report execution limitations."
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
     }
   ]
 }

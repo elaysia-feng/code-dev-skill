@@ -1,10 +1,34 @@
 # Python Guidelines
 
+<<<<<<< HEAD
 适用场景：Python 后端，尤其是 **FastAPI + LangGraph**。新增代码遵循本规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
+=======
+Target context: Python backend, especially **FastAPI + LangGraph**. These are **mandatory** rules within the authorized task scope. Correct affected code and report unrelated structural debt rather than migrating it automatically. Explicit user requirements and applicable project/company standards take precedence; see [`../SKILL.md`](../SKILL.md).
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 Structure is defined in [`project-structure.md`](project-structure.md) and is mandatory there too.
 
+## File ownership before implementation
+
+Before creating or moving a type, inspect its definition, framework markers, callers, serialization and persistence usage, and the project's layer conventions. Classify by responsibility, not its name or convenience of placing it next to a service:
+
+| Responsibility | Placement in the backend layout |
+|---|---|
+| Database table or ORM mapping | `models/<domain>.py` |
+| Request, response, service input/output DTO or read-only result structure | `schemas/<domain>.py` for a small cohesive module, otherwise `schemas/<domain>/` with role-specific modules |
+| Business rules, application orchestration or domain scheduling | `services/<domain>/` |
+| Graph-specific state | The owning graph's `state.py`, following the graph layout |
+| Private implementation helper or internal domain value object | Its existing owner; do not move it to `schemas/` solely because it holds data |
+
+For example, a `ReminderTask` mapped to a database table belongs in `models/reminder.py`, a read-only `Reminder` returned by the service belongs in the reminder schema module (or the appropriate response/output module when roles are split), and reminder logic and scheduling belong in `services/reminder/`. Do not create `services/reminder/reminder_model.py` to hold that output DTO. Names and field mutability alone do not determine the layer.
+
+Schemas must not import services or persistence models merely to define their data shape. Perform conversion at the appropriate business/API boundary instead of creating circular imports or returning ORM objects as DTOs. Preserve existing public identifiers unless renaming is authorized.
+
+When evidence leaves materially different valid placements, describe the alternatives and ask before creating the file. Do not invent a new layer or use "it runs" as justification. After relocation, update imports, public exports, dependency providers and tests; verify the affected import path and behavior. Import validation alone does not prove database access or scheduling works. During review, report misplaced types rather than moving them automatically.
+
 ## FastAPI boundaries
+
+API versions follow [API versioning guidelines](api-versioning-guidelines.md): preserve required old contracts, add only necessary version-specific routes and DTOs, and reuse business/persistence layers where semantics remain the same.
 
 Keep HTTP-specific behavior at the API layer:
 
@@ -40,6 +64,8 @@ Do not convert an entire code path to async only for style consistency.
 
 ## Services and persistence
 
+Organize `services/` into subpackages as real business boundaries emerge, such as `services/pay/`. Multiple domains or multiple responsibility-specific modules within a domain must not remain flat at the root. See [`project-structure.md`](project-structure.md#services) for layouts and small-project boundaries. Packaging does not imply adding ABC/Protocol, interface/implementation pairs or forwarding layers.
+
 For a small project with one implementation, a plain class or module-level function is enough:
 
 ```python
@@ -51,10 +77,10 @@ class OrderService:
         order = self.session.get(Order, order_id)
         if order is None:
             raise OrderNotFoundError(order_id)
-        if order.status != "PENDING":
+        if order.status != OrderStatus.PENDING:
             raise OrderStateError("Only pending orders can be cancelled")
 
-        order.status = "CANCELLED"
+        order.status = OrderStatus.CANCELLED
         self.session.add(order)
         self.session.flush()  # 事务提交由公开业务入口统一管理。
         return order
@@ -62,11 +88,19 @@ class OrderService:
 
 Do not create an ABC/Protocol solely because there is one implementation.
 
+<<<<<<< HEAD
 小项目的简单查询可以直接写在 service 中。出现复用查询、复杂持久化规则、存储替换或隔离测试边界时，可引入 `repositories/`；不为单次 CRUD 添加纯转发层。已有 repository 时必须复用它，不能建立并行数据访问路径。
 
 事务由公开业务入口统一管理；参与同一操作的 service/repository 不各自提交。查询通常无需额外事务包装；避免在事务中等待 LLM、网络调用等慢操作。提交、回滚和资源释放采用项目所用数据库库的机制，并验证失败时能正确回滚。
+=======
+The example assumes `OrderStatus` is the domain-owned enum and this method owns the transaction. It illustrates service ownership, not concurrency safety: when competing writes are possible, follow [runtime boundaries](runtime-boundaries.md) for conditional updates and transaction ownership.
+
+Do not add `repositories/` merely to complete a template or forward one ORM call. A real persistence contract, replaceable backend, stable shared query responsibility or explicit user request can justify it. Reuse the existing access boundary and migrate affected callers consistently; do not maintain competing direct-ORM and repository paths for the same responsibility.
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 ## Pydantic schemas
+
+Organize schemas by business domain and actual data role, separating request and response contracts when they differ. Organize API routers by domain under any existing version boundary. Follow the package and small-project rules in [`project-structure.md`](project-structure.md#schemas); do not flatten unrelated schemas/routes or add empty packages for symmetry.
 
 Use Pydantic models for external request/response data:
 

@@ -1,6 +1,6 @@
 # Examples
 
-These examples are binding, not illustrative: they show the required shape. Preserve real boundaries and existing conventions that satisfy the standard; avoid indirection that exists only for symmetry or line-count reduction.
+These examples illustrate required boundaries, not complete production implementations or instructions to create every shown file. Apply them within the relevant language and task scope. Preserve conventions that satisfy the standard; avoid indirection introduced only for symmetry or line-count reduction. Persistence examples require the transaction and concurrency decisions in [runtime boundaries](runtime-boundaries.md).
 
 ## Java monolith: service interface + impl
 

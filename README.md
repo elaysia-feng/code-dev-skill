@@ -1,8 +1,8 @@
 # code-dev
 
-A **mandatory development standard** for Java/Spring, Python/FastAPI/LangGraph and TypeScript/Node.js projects. It unifies project structure, the shape of Java business interfaces and Simplified Chinese code comments, and sets the entry point and packaging requirements for publishable TypeScript npm packages.
+A development standard for **Java/Spring, Python/FastAPI/LangGraph, TypeScript/JavaScript/Node.js, C++ and C#/.NET**. It covers environment-specific configuration, prevention of hardcoded configuration and business magic values, Simplified Chinese code comments, and language/framework-specific structure and validation. Java business interface and TS publishing rules apply only to their respective languages.
 
-The standard is mandatory: it applies to every personal project, and the bar is never lowered to match the existing code style. The only source of exemption is company standards — if the target project has a company-standards skill installed or a project-level conventions file, that takes precedence and this standard falls back to being a reference.
+The standard applies within the authorized task scope. Explicit user requirements take precedence; company standards and project conventions override this skill where applicable. Existing style alone does not justify violations, but a local task does not authorize a repository-wide migration.
 
 The skill name, the directory name and the explicit trigger name are all `code-dev`: Codex uses `$code-dev`, Claude Code uses `/code-dev`. The package name in `package.json` is temporarily kept as `readability-first-coding` as a compatibility identifier; installation fetches from GitHub and does not depend on a same-named package in the npm registry.
 
@@ -51,7 +51,7 @@ Use `--target-dir` for a custom installation directory; the path must point at t
 
 ## Scope of application
 
-- Implementing and reviewing Java / Python backends and TypeScript/Node.js code.
+- Implementing, reviewing and refactoring Java, Python, TypeScript/JavaScript, C++ and C#/.NET projects.
 - Choosing how to organize services, interfaces and the data access layer based on the existing project.
 - Keeping responsibilities and dependencies under control in microservice, FastAPI and LangGraph projects.
 - Maintaining the comments touched by a change while editing code; read the package standards on demand when creating or maintaining a TS npm package.

@@ -1,6 +1,10 @@
 # Java Microservice Guidelines
 
+<<<<<<< HEAD
 本文与 `java-guidelines.md` 配合使用。新增代码遵循规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
+=======
+Use this file together with `java-guidelines.md`. Both apply within the authorized task scope and inherit the user/project/company precedence rules in [`../SKILL.md`](../SKILL.md). Do not expand a local change into a system-wide migration.
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 ## Service ownership
 
@@ -16,7 +20,11 @@ project-parent/
 └── common-api/             # optional, only when genuinely shared
 ```
 
+<<<<<<< HEAD
 新建共享模块使用 `common-api/`。既有 `base-service`、`common`、`platform-core` 或 `shared-kernel` 仅在用户同意全量迁移后改名；不同意时保留并复用已有模块。
+=======
+Use `common-api/` for a new genuinely shared API/event contract module unless project conventions specify otherwise. Existing shared modules are classified by their actual contents, not renamed solely to match a template; see [project structure](project-structure.md#java-microservices).
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 ## Business module shape
 
@@ -79,7 +87,11 @@ Do not move order/product/user business rules into a shared module merely to rem
 
 ## Shared modules
 
+<<<<<<< HEAD
 已有共享模块保持原有职责范围；仅在用户同意全量迁移后调整名称为 `common-api/` 及相应布局，并同步依赖引用。不同意时沿用已有模块，不另建重复实现。
+=======
+For an existing shared module, inspect scope and consumers before changing its structure. Keep contract ownership distinct from infrastructure implementations and domain logic. Renaming alone does not correct misplaced responsibilities; migrate only when the task requires it and update all affected dependencies.
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 Good shared-module contents may include stable technical contracts such as:
 
@@ -101,7 +113,11 @@ Avoid generic inheritance frameworks such as:
 - `BaseEntity`
 - `AbstractConverter`
 
+<<<<<<< HEAD
 既有此类继承结构仅在用户同意迁移后调整为组合；不同意时保留，不因本规范自动重构。
+=======
+Assess an existing base type's actual responsibility before changing it. Keep meaningful framework/domain contracts; replace boilerplate-only inheritance with composition when that refactor is within scope. A framework-provided type such as MyBatis-Plus `BaseMapper` is not a project-invented inheritance framework and is not banned merely by its name.
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 ## Service communication
 
@@ -116,6 +132,8 @@ Typical choices:
 Do not replace an existing Feign/WebClient/MQ pattern with another style without a requirement.
 
 ## Transactions and consistency
+
+Also follow [runtime boundaries](runtime-boundaries.md) for transaction ownership, bounded retries, duplicate delivery and job execution.
 
 Do not assume a local database transaction can provide atomicity across services.
 

@@ -1,7 +1,7 @@
 {
   "name": "readability-first-coding",
   "version": "1.3.3",
-  "description": "Mandatory development standard for Java/Spring, Python/FastAPI/LangGraph and TypeScript/Node.js projects: fixed project structure, interface-first Java business components, Simplified Chinese code comments and TypeScript package publishing.",
+  "description": "Development standards for Java/Spring, Python/FastAPI/LangGraph, TypeScript/JavaScript/Node.js, C++ and C#/.NET: environment configuration, prevention of hardcoded configuration and business magic values, language-specific structure, Simplified Chinese comments and TS publishing.",
   "author": {
     "name": "elaysia-feng"
   },

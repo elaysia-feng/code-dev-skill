@@ -132,7 +132,11 @@
   {
     "query": "公司有自己的规范 skill，code-dev 还要用吗",
     "should_trigger": true,
+<<<<<<< HEAD
     "reason": "应加载 skill 判断公司规范优先级与迁移范围。"
+=======
+    "reason": "Applicable company/project conventions and explicit user requirements take precedence. Kept in Chinese to cover cross-language triggering."
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
   },
   {
     "query": "帮我解释一下什么是依赖注入",
@@ -143,5 +147,10 @@
     "query": "Change this variable to final",
     "should_trigger": false,
     "reason": "Trivial one-token edit with no structural or documentation consequence."
+  },
+  {
+    "query": "Add table and column comments plus trailing field explanations to init.sql.",
+    "should_trigger": true,
+    "reason": "SQL initialization and schema documentation rules are explicitly covered."
   }
 ]

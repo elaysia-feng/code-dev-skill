@@ -50,6 +50,12 @@ Translating or deleting any of these is wrong: their content is fixed by the too
 - Put multi-part contracts, business context, or limitations in `@remarks`; add `@example` only when it helps consumers call the API correctly; for a deprecated API use `@deprecated` and state the replacement.
 - Internal comments explain reasons, boundaries, or ordering constraints. Avoid restating the implementation line by line, and never apply a boilerplate template to every private member just to satisfy a documentation tool.
 
+## C++ and C#
+
+- C++ public APIs use the project's Doxygen or equivalent format to document ownership, lifetimes, errors and threading constraints.
+- C# public APIs use XML documentation comments to describe meaningful parameters, return values, exceptions and cancellation semantics.
+- Both languages follow this document's Simplified Chinese, stage numbering and comment scope rules. Do not apply Javadoc, TSDoc or Python docstring syntax. Preserve fixed generator and analyzer directives.
+
 ## TODO markers
 
 - Always record genuinely unfinished work as `TODO(owner): reason or next step`. A TODO without an owner does not conform to this standard. `FIXME` and `XXX` must also carry an owner.

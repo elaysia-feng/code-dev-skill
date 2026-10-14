@@ -1,6 +1,50 @@
 # Java Guidelines
 
+<<<<<<< HEAD
 本文适用于 Java/Spring 后端。新增代码遵循本规范；既有结构按 [`../SKILL.md`](../SKILL.md) 的“既有项目迁移”规则先询问用户，同意后全量迁移，不同意则仅新增部分采用新规范。公司规范的优先级见同一入口文件。
+=======
+These are **mandatory** rules for Java/Spring backend work within the authorized task scope. Apply corrections to affected code and report unrelated structural debt rather than migrating it automatically. Explicit user requirements and applicable project/company standards take precedence; see [`../SKILL.md`](../SKILL.md).
+
+## Conditional branch braces
+
+Every `if`, `else if` and `else` branch body **must** use braces `{}`, regardless of statement count or line breaks. Guard clauses and early returns are not exempt. A normal `else if (...) { ... }` chain is allowed; each conditional body still requires braces.
+
+Both of these forms are prohibited:
+
+```java
+if (!authorized(authorization)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+if (!authorized(authorization))
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+```
+
+Required form:
+
+```java
+if (!authorized(authorization)) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+}
+```
+
+During implementation and refactoring, enforce this rule in the code being changed. During review, report unbraced branch bodies as mandatory violations. The existing checkers do not check this rule, so inspect branch bodies explicitly.
+
+## Configuration and environments
+
+Spring Boot defaults belong in `application.yml`; development, test and production differences belong in `application-dev.yml`, `application-test.yml` and `application-prod.yml`, selected through Spring profiles. Plain Java and other frameworks use their native mechanisms; do not introduce Spring just for YAML or profiles. Follow [`configuration-guidelines.md`](configuration-guidelines.md) for loading, defaults, secrets and hardcoding rules. The binding requirements below apply to Spring projects.
+
+Prefer `@ConfigurationProperties` for related domain or infrastructure settings, with `@Validated` and validation annotations for required values and ranges; register the type using the project's mechanism. Isolated settings may use `@Value`, but do not embed environment values or configuration defaults in annotations: move defaults such as the one in `${client.timeout:5000}` into YAML. Configuration types need no business interface or `impl/`.
+
+## Annotation usage
+
+Use applicable declarative framework annotations and verify they work, avoiding duplicate handwritten framework logic. The framework rules below assume the project already uses the corresponding framework; do not force frameworks into plain Java or require all business logic to use annotations.
+
+- Register components with role-appropriate annotations such as `@Service`, `@Component`, `@Repository` or `@Configuration` / `@Bean`; annotate business implementations. Retain constructor injection; a single constructor needs no redundant `@Autowired`.
+- Use request-mapping annotations at HTTP entry points and Bean Validation for request-field constraints, triggered by `@Valid` / `@Validated`. Cross-field, cross-entity and persistence-dependent business rules remain at the appropriate business boundary.
+- For writes requiring atomicity, place `@Transactional` on public business entry methods and configure rollback according to actual exception semantics. Ordinary queries usually need no transaction; avoid slow external calls inside transactions.
+- Use security, caching, asynchronous execution and retry annotations when needed and when the dependencies already exist; do not add unrelated dependencies or change business semantics merely to use annotations.
+- Use `@Override` for interface implementations and superclass overrides. Use existing code-generation annotations within their intended scope; do not add dependencies to save a few lines.
+- Verify component scanning, feature enablement, validation dependencies and proxy call paths. Same-class self-invocation alone does not activate proxy-based transaction, async or caching annotations. Do not claim functionality by annotating methods the proxy cannot intercept.
+>>>>>>> 3af7b9d92fb5a5e0df3955aa6c8af7b97ce5764f
 
 ## Business interface rule
 
@@ -83,6 +127,8 @@ The goal is a stable contract boundary for extension/replacement, testing, AOP/i
 ## DTOs
 
 Separate request and response models when the API already uses DTOs:
+
+For multiple domains, subdivide DTO and other layer packages as specified in [project structure](project-structure.md#ordinary-monolithic-spring-project). Do not flatten unrelated domain types or add mapper packages when the actual persistence framework uses a different boundary.
 
 ```text
 dto/
