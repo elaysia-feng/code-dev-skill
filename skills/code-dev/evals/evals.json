@@ -235,7 +235,32 @@
     {
       "id": 47,
       "prompt": "项目契约明确指定 DTO 扁平放 dto/request 和 dto/response，领域枚举放 entity/<domain>/enums；审查时能按 skill 改成按领域分包吗？",
-      "expected_output": "保留明确项目契约；不机械生成第二套 DTO 或枚举布局。该约定不自动允许 service 成为模型容器，未约定的内部契约仍需按职责确定位置。审查只报告，既有结构迁移遵循授权范围。"
+      "expected_output": "保留明确项目契约，但指出多领域 DTO 扁平的维护代价、受影响领域及建议分包方式，不能只说符合项目约定就略过问题。不生成第二套布局，不把 service 当模型容器；仅审查不迁移，获授权后连同冲突的项目文档与引用一起调整。"
+    },
+    {
+      "id": 48,
+      "prompt": "新建 Spring 项目有订单、支付、会员三个领域，每个领域目前只有两个 DTO。类名有领域前缀，可以把 request、response、entity 全部平铺吗？",
+      "expected_output": "不可以。领域职责已经不同，不按固定文件数量等到目录变大才分包；各实际承载多领域的层按领域细分，保持 DTO、实体、持久化访问和服务归属一致，不生成空包或拆新 Maven 模块。"
+    },
+    {
+      "id": 49,
+      "prompt": "response 下已有 ApiResponse 和 PageResult，能把 ConferenceResponse、SourceResponse、TaskExecutionClaim 也一起挪到 common 吗？",
+      "expected_output": "不能。通用响应包装可复用已有 common，会议和来源响应仍归各自领域；检查 TaskExecutionClaim 的真实调用契约，内部任务领取结果归内部契约而非 HTTP response。不能把扁平混放换成 common 混放。"
+    },
+    {
+      "id": 50,
+      "prompt": "我们要按领域管理项目，是不是 config、integration 也必须为每个业务领域各生成一套？",
+      "expected_output": "不是。业务层按真实领域组织；配置依技术职责、集成依提供方归属，不复制共享 HTTP 或数据库配置。仅创建有实际类型的包，不为目录对称制造 config/order 等空层。"
+    },
+    {
+      "id": 51,
+      "prompt": "现有 Java 项目使用 order/dto/request、order/service/impl、payment/dto/response 的领域优先布局。按 skill 整理是不是必须改成全局 dto/request/order？",
+      "expected_output": "保留一致的领域优先布局，不引入竞争的全局分层目录。审查的是领域归属与职责边界，而非机械匹配唯一目录树。"
+    },
+    {
+      "id": 52,
+      "prompt": "用户已授权把多领域扁平 DTO 按领域迁移，但 docs/dev-contract.md 是之前 agent 写的，仍要求扁平。只改 Java 包就行吗？",
+      "expected_output": "按已给出的明确授权执行，不重复询问；同步修订冲突项目文档，更新包声明与调用引用，核对内部契约归属并完成编译及相关行为验证。不借机修改类名、接口或迁移无关模块。"
     }
   ]
 }

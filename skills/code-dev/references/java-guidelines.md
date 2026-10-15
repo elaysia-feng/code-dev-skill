@@ -134,15 +134,17 @@ Apply [Java type ownership](project-structure.md#java-type-ownership) before pla
 
 Separate request and response models when the API already uses DTOs:
 
-For multiple domains, subdivide DTO and other layer packages as specified in [project structure](project-structure.md#ordinary-monolithic-spring-project). Do not flatten unrelated domain types or add mapper packages when the actual persistence framework uses a different boundary.
+For multiple domains, apply [domain subdivision across layers](project-structure.md#domain-subdivision-across-layers) to request/response/internal DTOs as well as entities and persistence access. Domain-prefixed names do not replace packages; splitting only services is insufficient. Single-domain applications may remain shallow. Preserve explicit project conventions while reporting flat-layout maintenance costs; do not silently migrate or introduce mapper packages for another persistence framework.
 
 ```text
 dto/
 ├── request/
-│   ├── CreateOrderRequest.java
-│   └── UpdateOrderRequest.java
+│   └── order/
+│       ├── CreateOrderRequest.java
+│       └── UpdateOrderRequest.java
 └── response/
-    └── OrderResponse.java
+    └── order/
+        └── OrderResponse.java
 ```
 
 Do not return persistence entities directly from public controllers. Public controllers return `dto/response/` types.

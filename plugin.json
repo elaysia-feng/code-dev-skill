@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "code-dev",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Development standards for Java/Spring, Python/FastAPI/LangGraph, TypeScript/JavaScript/Node.js, C++ and C#/.NET: environment configuration, prevention of hardcoded configuration and business magic values, language-specific structure, Simplified Chinese comments and TS publishing.",
   "author": {
     "name": "elaysia-feng"

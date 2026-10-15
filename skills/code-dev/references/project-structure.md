@@ -34,17 +34,21 @@ For a normal single-module Spring Boot application, keep business services under
 ```text
 com.example.project/
 ├── controller/
+│   └── order/
 ├── dto/
 │   ├── request/
+│   │   └── order/
 │   └── response/
+│       └── order/
 ├── service/
-│   ├── OrderService.java
-│   ├── UserService.java
-│   └── impl/
-│       ├── OrderServiceImpl.java
-│       └── UserServiceImpl.java
+│   └── order/
+│       ├── OrderService.java
+│       └── impl/
+│           └── OrderServiceImpl.java
 ├── mapper/
+│   └── order/
 ├── entity/
+│   └── order/
 ├── config/
 └── exception/
 ```
@@ -62,7 +66,25 @@ Responsibilities:
 
 新增包使用上述单数名称 `service/`。既有 `services/` 的改名遵循入口的迁移选择；已明确授权局部迁移时按确认范围执行。
 
-When several domains or substantial modules exist, subdivide the relevant layer by domain rather than accumulating unrelated files: for example `controller/order/`, `dto/request/order/`, `dto/response/order/`, `service/order/impl/`, `mapper/order/` and `entity/order/`. A cohesive single-domain module may keep a shallow layout. Existing domain-first layouts may place these responsibilities under `order/`; preserve that consistent ownership rather than adding a second layout. The business interface and implementation remain paired under their owner.
+The tree illustrates a domain subdivision, not a requirement to create every directory. A cohesive single-domain application may omit the domain level. When multiple domains exist, apply the following rules even if each currently has only a few files.
+
+### Domain subdivision across layers
+
+Choose one consistent organization: layers subdivided by domain, or domains containing their own layers. Preserve an explicit existing domain-first architecture; never place half the features under `order/` and the rest under a competing global `service/`/`dto/` tree. Identify domains from responsibilities and workflows, not an arbitrary file-count threshold.
+
+For layer-first Java applications, subdivide each layer that actually holds multiple business domains:
+
+- Align corresponding owners, such as `controller/order/`, `dto/request/order/`, `dto/response/order/`, `dto/internal/order/`, `service/order/impl/`, `mapper/order/` and `entity/order/`.
+- A name such as `OrderResponse` does not justify flattening unrelated domains. Splitting only services while leaving all DTOs, entities and mappers flat does not deliver domain organization.
+- Create only packages containing real types. Do not generate empty request/response/internal packages for every domain, split by individual HTTP method, or introduce Maven modules merely to shorten a package listing.
+- Shared packages require stable cross-domain responsibilities and actual consumers: a response-envelope owner may contain `ApiResponse` and `PageResult`, but not domain responses merely because several callers use them. Do not move the same mixture into `common/`, `model/` or `base/`.
+- Organize infrastructure by its real technical/provider responsibility when domain grouping is inappropriate: for example database/security configuration and provider-owned clients. Do not manufacture `config/order/` or duplicate shared HTTP configuration for visual symmetry. Exceptions and domain constants retain their actual owner.
+
+Apply this principle through each language's native layout: Python schemas/services/models use actual domains, frontend features follow framework conventions, and C# or C++ preserve project/target boundaries. Do not impose Java package names on other languages.
+
+An explicit project convention requiring a flat layer still takes priority. During review, cite the exception and report its maintenance cost: affected layers/domains, difficulty locating related types, and the proposed subdivision. Do not simply label it compliant and omit the tradeoff. During implementation, explain the conflict before adding more mixed-domain types; preserve the declared contract until a change is authorized. A user's later instruction may revise an agent-generated convention, but discovering one is not permission to migrate. Within confirmed migration scope, update packages/imports and the conflicting project document together, then verify compilation and relevant behavior.
+
+Structural review must inspect the contents of request, response, internal contracts, entities, persistence access and other relevant packages, not just a sample service pair. Report mixed-domain types with their responsibility and intended owner. Static checkers do not infer business domains and cannot certify this rule.
 
 Create `mapper/` only when the project uses mapper-based persistence. A JPA or other persistence framework keeps its actual repository/access boundary instead of adding MP-shaped packages. No persistence layer is required for an application without persistence. DTOs, entities, enums and configuration remain distinct responsibilities; do not place them together just because a service uses them.
 

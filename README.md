@@ -76,6 +76,33 @@ npx readability-first-install --global
 
 仅供单个实现使用、不暴露契约且不具有独立领域或集成职责的私有临时元组，可以保留为嵌套类型，不要求每个局部结果都拆文件。详见 [结构规范](skills/code-dev/references/project-structure.md#java-type-ownership)。
 
+### 多领域包如何组织
+
+多领域应用应在各个实际承载业务类型的层内部按领域分组；类名有领域前缀不能替代分包，也不能只整理 `service/`，却把 request、response、entity、mapper 全部平铺。以下展示对应关系，实际只创建有内容的包：
+
+```text
+dto/
+├── request/
+│   ├── source/
+│   └── conference/
+├── response/
+│   ├── source/
+│   ├── conference/
+│   └── common/          # 通用响应包装，不收容领域响应
+└── internal/
+    └── task/            # 内部任务契约
+entity/
+├── source/
+└── conference/
+mapper/
+├── source/
+└── conference/
+```
+
+单领域小应用可以保持浅层结构；已有一致的领域优先布局也可保留。配置按技术职责、集成按提供方组织，不为目录对称给每个领域复制一套基础设施。
+
+如果项目文件明确要求扁平，agent 仍需指出维护代价、涉及领域和建议方案，不能只用“项目约定优先”略过问题。取得迁移授权后，代码引用和冲突的项目文档一起更新。详见 [跨层领域分包规则](skills/code-dev/references/project-structure.md#domain-subdivision-across-layers)。
+
 ## 三个检查器
 
 以下命令在本仓库根目录运行，`/path/to/project` 替换为业务项目路径；`python` 应指向你选定的 Python 环境。

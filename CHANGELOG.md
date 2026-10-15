@@ -4,6 +4,13 @@ All notable changes to this skill are recorded here. The version is kept in
 sync between `package.json` and `plugin.json`; a release is incomplete unless
 both are bumped.
 
+## 1.3.5
+
+- 强化多领域跨层分包要求，领域前缀不能代替 request、response、entity、mapper 等层的领域归属。
+- 调整 Java 示例与 README，明确通用协议、内部契约、单领域和基础设施分包的区别。
+- 项目约定要求扁平时，仍须报告维护代价；迁移获授权后同步更新代码引用与冲突文档。
+- 补充五个结构评估场景，并修订扁平项目约定场景的预期行为。
+
 ## 1.3.4
 
 - 明确 Java 数据契约、领域值对象和嵌套类型的归属，禁止把 service 包作为模型容器。
