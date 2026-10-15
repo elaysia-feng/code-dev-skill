@@ -78,9 +78,8 @@ async function doCheck() {
   process.exit(1);
 }
 
-function doUpdate() {
-  const target = resolveTarget();
-  // 在独立前缀安装新包，避免改动调用者的 package.json 或复用旧 npx 缓存。
+function doUpdate(targets = [resolveTarget()]) {
+  // 1. 在独立前缀下载一次，避免改动调用者的依赖文件或复用旧 npx 缓存。
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'code-dev-update-'));
   try {
     execSync('npm install ' + GITHUB_PACKAGE_SPEC + ' --ignore-scripts --no-audit --no-fund --package-lock=false', {
@@ -94,11 +93,14 @@ function doUpdate() {
     if (freshPackage.name !== PACKAGE_NAME || !freshPackage.version || !fs.existsSync(path.join(freshSkill, 'SKILL.md'))) {
       throw new Error('Updated package is incomplete');
     }
-    replaceSkillDir(freshSkill, target, process.argv.slice(2).includes('--force'));
-    if (!fs.readFileSync(path.join(target, 'SKILL.md')).equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
-      throw new Error('Installed skill verification failed');
+    // 2. 同一份下载依次更新各端；失败时保留已输出的成功目标，便于重试。
+    for (const target of targets) {
+      replaceSkillDir(freshSkill, target, process.argv.slice(2).includes('--force'));
+      if (!fs.readFileSync(path.join(target, 'SKILL.md')).equals(fs.readFileSync(path.join(freshSkill, 'SKILL.md')))) {
+        throw new Error('Installed skill verification failed');
+      }
+      console.log('Installed v' + freshPackage.version + ' to: ' + target);
     }
-    console.log('Installed v' + freshPackage.version + ' to: ' + target);
   } finally {
     // temp 由本进程创建，清理范围不依赖用户输入。
     fs.rmSync(temp, { recursive: true, force: true });
@@ -237,8 +239,8 @@ function copyDir(src, dest) {
       throw new Error('Refusing symbolic link in skill source: ' + srcPath);
     }
 
-    if (entry.isDirectory() && (entry.name === '__pycache__' || entry.name === '.omc')) {
-      continue; // skip Python bytecode cache and OMC runtime state
+    if (entry.isDirectory() && (entry.name === '__pycache__' || entry.name === '.omc' || entry.name === 'evals')) {
+      continue; // 排除开发评估夹具、字节码缓存和运行时状态，与 npm 分发范围一致。
     }
 
     if (entry.isDirectory()) {
@@ -331,4 +333,8 @@ function reportError(error) {
   process.exitCode = 2;
 }
 
-try { main(); } catch (error) { reportError(error); }
+module.exports = { doUpdate };
+
+if (require.main === module) {
+  try { main(); } catch (error) { reportError(error); }
+}

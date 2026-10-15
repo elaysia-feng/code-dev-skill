@@ -90,7 +90,7 @@ The example assumes `OrderStatus` is the domain-owned enum and an outer public b
 
 Do not add `repositories/` merely to complete a template or forward one ORM call. A real persistence contract, replaceable backend, stable shared query responsibility or explicit user request can justify it. Reuse the existing access boundary and migrate affected callers consistently; do not maintain competing direct-ORM and repository paths for the same responsibility.
 
-事务由公开业务入口统一管理；参与同一操作的 service/repository 不各自提交。查询通常无需额外事务包装；避免在事务中等待 LLM、网络调用等慢操作。提交、回滚和资源释放采用项目所用数据库库的机制，并验证失败时能正确回滚。
+事务由公开业务入口统一管理；参与同一操作的 services/repository 不各自提交。查询通常无需额外事务包装；避免在事务中等待 LLM、网络调用等慢操作。提交、回滚和资源释放采用项目所用数据库库的机制，并验证失败时能正确回滚。
 
 
 ## Pydantic schemas

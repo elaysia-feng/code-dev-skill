@@ -51,7 +51,7 @@ npx readability-first-install --global
 | --- | --- |
 | Java 业务边界 | 业务组件采用接口与 `impl/`，调用方依赖接口；DTO、实体、值对象、枚举和配置类不强加接口。 |
 | MP 持久化 | 新 Spring 项目选择 Mapper 持久化时使用 MyBatis-Plus（MP）。`BaseMapper<Entity>` 是框架代理，不需要手写 `MapperImpl`；已有其他明确选型按项目约定处理。 |
-| 类型归属 | `service/` 不是模型容器；内部契约、领域值对象、持久化实体和外部协议对象按职责归属，公开嵌套 `record` 也要检查。 |
+| 类型归属 | `services/` 不是模型容器；内部契约、领域值对象、持久化实体和外部协议对象按职责归属，公开嵌套 `record` 也要检查。 |
 | 配置与硬编码 | 使用框架原生机制隔离开发、测试、生产环境；统一维护公共默认值。地址、超时、重试等可调参数不能仅换成常量就算外置。 |
 | 事务与集成 | 原子写操作由业务边界拥有事务；验证代理调用路径，避免事务内慢 IO，不另写一套调用绕过已有集成组件。 |
 | 注释 | 新增或修改的说明性注释使用简体中文；多阶段流程按真实层级编号，短方法、私有方法不因行数少自动豁免。 |
@@ -72,13 +72,13 @@ npx readability-first-install --global
 | 领域枚举与固定常量 | 已有领域归属；否则 `domain/<domain>/enums/`、`domain/<domain>/constants/` |
 | 外部提供方的载荷与原始结果 | `integration/<provider>/model/` 或已有集成契约归属 |
 
-例如，传给多个处理器的字段型 `TaskContext` 是内部契约；承载归一化和比较不变量的 `MetadataFingerprint` 是领域值对象。不能因为它们被服务使用，就全部放进 `service/`。
+例如，传给多个处理器的字段型 `TaskContext` 是内部契约；承载归一化和比较不变量的 `MetadataFingerprint` 是领域值对象。不能因为它们被服务使用，就全部放进 `services/`。
 
 仅供单个实现使用、不暴露契约且不具有独立领域或集成职责的私有临时元组，可以保留为嵌套类型，不要求每个局部结果都拆文件。详见 [结构规范](skills/code-dev/references/project-structure.md#java-type-ownership)。
 
 ### 多领域包如何组织
 
-多领域应用应在各个实际承载业务类型的层内部按领域分组；类名有领域前缀不能替代分包，也不能只整理 `service/`，却把 request、response、entity、mapper 全部平铺。以下展示对应关系，实际只创建有内容的包：
+多领域应用应在各个实际承载业务类型的层内部按领域分组；类名有领域前缀不能替代分包，也不能只整理 `services/`，却把 request、response、entity、mapper 全部平铺。以下展示对应关系，实际只创建有内容的包：
 
 ```text
 dto/
@@ -166,6 +166,16 @@ python skills/code-dev/scripts/check-java-boundaries.py /path/to/project --fail-
 门禁放行只表示未达到当前阈值，不代表运行功能或所有规范已验证。
 
 ## 检查版本与更新安装
+
+安装全局命令后，可在任意目录运行 `code-dev update`，从 GitHub `main` 下载一次并更新 Claude Code 与 Codex 的用户级 skill，不要求版本号变化。首次在本仓库执行：
+
+```sh
+npm install --global . --ignore-scripts
+code-dev update
+```
+
+Claude Code 目标为 `~/.claude/skills/code-dev/`，Codex 目标为 `~/.agents/skills/code-dev/`。两端依次更新；第二端失败不会回滚已成功的一端，命令返回非零，修复后可重试。更新不会拉取或修改当前工作区，也不会更新全局 CLI 本身。GitHub 必须已推送更新；本地未提交的内容不会被下载。更新后在新会话使用。
+
 
 版本检查比较的是**本地源码包或 npm 包的版本**与 GitHub `main` 的 `package.json`，不会逐一检查全局 skill 目录是否同步，也不会自动更新文件：
 

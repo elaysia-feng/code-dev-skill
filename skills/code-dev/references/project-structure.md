@@ -4,7 +4,7 @@
 
 The Java/Spring and FastAPI/LangGraph layouts below apply only to those application types, not plain Java tools, other Python applications, TS/JS, C++ or C#. TS/JS follows its framework's entry points and directory conventions; npm packages also follow the package publishing guidelines.
 
-C++ preserves the existing build system and target boundaries: new projects may use `src/` and `tests/`; create `include/` only for externally consumed public headers, keeping private headers near implementations. C# preserves solution/project boundaries: organize `.csproj` and test projects by application type, and follow the entry-point conventions of ASP.NET Core, desktop applications or libraries. Do not split projects merely to standardize a directory tree or apply Java's `service/impl/` pattern. See [configuration guidelines](configuration-guidelines.md) for formats and environment layouts.
+C++ preserves the existing build system and target boundaries: new projects may use `src/` and `tests/`; create `include/` only for externally consumed public headers, keeping private headers near implementations. C# preserves solution/project boundaries: organize `.csproj` and test projects by application type, and follow the entry-point conventions of ASP.NET Core, desktop applications or libraries. Do not split projects merely to standardize a directory tree or apply Java's `services/impl/` pattern. See [configuration guidelines](configuration-guidelines.md) for formats and environment layouts.
 
 Layer responsibilities and applicable naming rules are mandatory; example trees show their intended organization, not a requirement to create every illustrated file. Create only needed directories. Existing structure changes follow the migration rule in [`../SKILL.md`](../SKILL.md); report unrelated debt instead of automatically migrating the whole project. Entries marked `optional` are prohibited unless actually needed.
 
@@ -19,7 +19,7 @@ Apply these responsibilities using the project's native names, not a universal `
 | Persistence entity / ORM mapping | Persistence layer: Java entities, Python models, TS ORM models, C# EF entities; C++ persistence mappings only when present |
 | Transport request/response or service boundary DTO | Contract/schema/DTO owner, grouped by domain and role; keep separate from persistence entities |
 | Internal domain value object / state / invariant | Owning domain, not automatically an HTTP DTO or database model |
-| Business orchestration | Domain service/application owner |
+| Business orchestration | Domain services/application owner |
 | External client, storage or messaging implementation | Existing infrastructure/integration owner; create an adapter only for a real boundary |
 | Application startup and dependency wiring | Composition/lifecycle entry point |
 
@@ -29,7 +29,7 @@ C# `Models` and TS `models` may be ambiguous: inspect persistence attributes/map
 
 ### Ordinary monolithic Spring project
 
-For a normal single-module Spring Boot application, keep business services under `service/`, and use interface + `impl/`:
+For a normal single-module Spring Boot application, keep business services under `services/`, and use interface + `impl/`:
 
 ```text
 com.example.project/
@@ -40,7 +40,7 @@ com.example.project/
 │   │   └── order/
 │   └── response/
 │       └── order/
-├── service/
+├── services/
 │   └── order/
 │       ├── OrderService.java
 │       └── impl/
@@ -58,23 +58,23 @@ Responsibilities:
 - `controller/` — HTTP boundary: parse/validate request, call service contract, return response.
 - `dto/request/` — incoming API models.
 - `dto/response/` — outgoing API models.
-- `service/` — business contracts; implementations live in `impl/`.
+- `services/` — business contracts; implementations live in `impl/`.
 - `mapper/` — persistence access when using MyBatis-Plus (MP) mappers.
 - `entity/` — persistence models.
 - `config/` — framework/infrastructure configuration.
 - `exception/` — project/domain exceptions when they have clear ownership.
 
-新增包使用上述单数名称 `service/`。既有 `services/` 的改名遵循入口的迁移选择；已明确授权局部迁移时按确认范围执行。
+New business packages use `services/`. Renaming an existing `service/` package follows the migration choice in the entrypoint; execute an already authorized migration within its confirmed scope.
 
 The tree illustrates a domain subdivision, not a requirement to create every directory. A cohesive single-domain application may omit the domain level. When multiple domains exist, apply the following rules even if each currently has only a few files.
 
 ### Domain subdivision across layers
 
-Choose one consistent organization: layers subdivided by domain, or domains containing their own layers. Preserve an explicit existing domain-first architecture; never place half the features under `order/` and the rest under a competing global `service/`/`dto/` tree. Identify domains from responsibilities and workflows, not an arbitrary file-count threshold.
+Choose one consistent organization: layers subdivided by domain, or domains containing their own layers. Preserve an explicit existing domain-first architecture; never place half the features under `order/` and the rest under a competing global `services/`/`dto/` tree. Identify domains from responsibilities and workflows, not an arbitrary file-count threshold.
 
 For layer-first Java applications, subdivide each layer that actually holds multiple business domains:
 
-- Align corresponding owners, such as `controller/order/`, `dto/request/order/`, `dto/response/order/`, `dto/internal/order/`, `service/order/impl/`, `mapper/order/` and `entity/order/`.
+- Align corresponding owners, such as `controller/order/`, `dto/request/order/`, `dto/response/order/`, `dto/internal/order/`, `services/order/impl/`, `mapper/order/` and `entity/order/`.
 - A name such as `OrderResponse` does not justify flattening unrelated domains. Splitting only services while leaving all DTOs, entities and mappers flat does not deliver domain organization.
 - Create only packages containing real types. Do not generate empty request/response/internal packages for every domain, split by individual HTTP method, or introduce Maven modules merely to shorten a package listing.
 - Shared packages require stable cross-domain responsibilities and actual consumers: a response-envelope owner may contain `ApiResponse` and `PageResult`, but not domain responses merely because several callers use them. Do not move the same mixture into `common/`, `model/` or `base/`.
@@ -90,7 +90,7 @@ Create `mapper/` only when the project uses mapper-based persistence. A JPA or o
 
 ### Java type ownership
 
-`service/` owns business contracts and orchestration implementations. It is not the default home for every type consumed or produced by a service. Classify a type from its fields, behavior, annotations, callers and method signatures; `record`, Lombok `@Data`, a `Context`/`Result`/`Model` suffix, or proximity to a caller does not establish ownership.
+`services/` owns business contracts and orchestration implementations. It is not the default home for every type consumed or produced by a service. Classify a type from its fields, behavior, annotations, callers and method signatures; `record`, Lombok `@Data`, a `Context`/`Result`/`Model` suffix, or proximity to a caller does not establish ownership.
 
 For an ordinary layer-first Spring project, use these owners. Reuse an explicitly established equivalent owner in a domain-first layout; do not introduce a parallel layout. Dedicated multi-module ownership is described below.
 
@@ -100,7 +100,7 @@ For an ordinary layer-first Spring project, use these owners. Reuse an explicitl
 | Pure internal command, task context or service result passed between components | `dto/internal/<domain>/` | No HTTP exposure is required to be a DTO; do not disguise internal contracts as HTTP responses. Existing message contracts use the actual message owner, such as `dto/message/<domain>/`. |
 | Non-persistent domain value, state or invariant | `domain/<domain>/model/` | A value object may own normalization, equality or invariant behavior without becoming a service or requiring an interface. Do not give it ORM annotations merely to fit `entity/`. |
 | Database-mapped entity | `entity/<domain>/` | Requires actual persistence responsibility; fields alone do not make a type an entity. |
-| Domain state enum or fixed domain constants | The existing domain-owned `enums/` or `constants/`; otherwise `domain/<domain>/enums/` or `domain/<domain>/constants/` | Do not accumulate these in `service/` or global `CommonConstants`. Tunable parameters still belong in configuration, never constants. |
+| Domain state enum or fixed domain constants | The existing domain-owned `enums/` or `constants/`; otherwise `domain/<domain>/enums/` or `domain/<domain>/constants/` | Do not accumulate these in `services/` or global `CommonConstants`. Tunable parameters still belong in configuration, never constants. |
 | External provider payload, raw response or parser model | `integration/<provider>/model/` or the established integration contract owner | Business orchestration consumes the integration boundary; it must not become the owner of provider protocol types. |
 | Framework configuration or bound settings | `config/` or the established infrastructure configuration owner | Do not place settings in a service model or a constants holder. |
 
@@ -282,9 +282,9 @@ Prefer domain/service ownership over one global shared module:
 
 ```text
 project-parent/
-├── order-service/
-├── product-service/
-├── user-service/
+├── order-services/
+├── product-services/
+├── user-services/
 └── common-api/             # optional; only if the project genuinely needs one
 ```
 
@@ -292,7 +292,7 @@ For a new shared API/event contract module, use `common-api/` unless project con
 
 既有模块迁移须遵循入口的迁移选择；不得把基础设施或领域实现仅通过改名变成 API 契约。
 
-If an individual microservice is a normal Spring module, use its `service/` + `impl/` business structure. If the Maven project instead separates a dedicated `*.biz` module, use the `biz` layout described above.
+If an individual microservice is a normal Spring module, use its `services/` + `impl/` business structure. If the Maven project instead separates a dedicated `*.biz` module, use the `biz` layout described above.
 
 See `microservice-guidelines.md` for cross-service rules.
 

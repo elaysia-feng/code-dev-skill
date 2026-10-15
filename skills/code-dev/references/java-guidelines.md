@@ -76,12 +76,12 @@ Inside a dedicated `biz` module, apply interface-first design to business-behavi
 
 ### Ordinary monolithic Spring project
 
-When there is no dedicated Maven `*.biz` module, keep business logic under the project's `service/` package and also use interface + `impl/`:
+When there is no dedicated Maven `*.biz` module, keep business logic under the project's `services/` package and also use interface + `impl/`:
 
 ```text
 com.example.order/
 ├── controller/
-├── service/
+├── services/
 │   ├── OrderService.java
 │   ├── PaymentService.java
 │   └── impl/
@@ -91,7 +91,7 @@ com.example.order/
 └── entity/
 ```
 
-新增包使用上述单数名称（`service/`、`mapper/`、`entity/`）。既有 `services/` 的改名遵循入口的迁移选择；已授权局部迁移时按确认范围执行，不同意时保留已有包及其调用关系。
+New business packages use `services/`; `mapper/` and `entity/` retain their names. Renaming an existing `service/` package follows the migration choice in the entrypoint; execute authorized changes within scope, otherwise preserve the existing package and callers.
 
 ### Required conventions
 
@@ -130,7 +130,7 @@ MP mapper implementations are framework-generated proxies, not missing business 
 
 ## DTOs
 
-Apply [Java type ownership](project-structure.md#java-type-ownership) before placing any data-bearing type. `service/` and `service/impl/` are not homes for shared DTOs, domain models or enums. Inspect exposed nested records as well as separate files; internal service contracts need not be HTTP request/response types. Private implementation-only temporary tuples may remain nested under the stated exception.
+Apply [Java type ownership](project-structure.md#java-type-ownership) before placing any data-bearing type. `services/` and `services/impl/` are not homes for shared DTOs, domain models or enums. Inspect exposed nested records as well as separate files; internal service contracts need not be HTTP request/response types. Private implementation-only temporary tuples may remain nested under the stated exception.
 
 Separate request and response models when the API already uses DTOs:
 
@@ -153,7 +153,7 @@ Use Bean Validation (`@NotNull`, `@Size`, custom validators) for request constra
 
 ## Domain types, constants, and enums
 
-Non-persistent domain values belong to their domain model owner, not automatically to `service/`, `entity/` or an HTTP DTO package. Their normalization, equality and invariant methods do not trigger the business-service interface rule. Fixed domain enums/constants use the domain-owned packages specified in the structure reference; externalized settings remain configuration.
+Non-persistent domain values belong to their domain model owner, not automatically to `services/`, `entity/` or an HTTP DTO package. Their normalization, equality and invariant methods do not trigger the business-service interface rule. Fixed domain enums/constants use the domain-owned packages specified in the structure reference; externalized settings remain configuration.
 
 Domain enums are appropriate when they model real finite states or categories:
 
@@ -239,7 +239,7 @@ Do not introduce these solely for architectural symmetry:
 - an extra repository layer when the project currently uses mapper access directly
 - factory/strategy/template-method classes for a single behavior
 - converter layer for trivial field copies
-- base controller/service/entity hierarchy
+- base controller/services/entity hierarchy
 - generic manager/handler/processor wrappers around an already clear flow
 
 The required Java business `interface + impl/` pair is not considered speculative layering.

@@ -41,7 +41,7 @@ class JavaBoundaryTests(unittest.TestCase):
             findings, _ = boundary.scan(root)
             return {item.code for item in findings}
 
-    def java(self, source, path="src/main/java/app/service/Demo.java", extra=None):
+    def java(self, source, path="src/main/java/app/services/Demo.java", extra=None):
         return self.codes({path: source, **(extra or {})})
 
     def test_simple_accessors_are_exempt(self):
@@ -136,7 +136,7 @@ class JavaBoundaryTests(unittest.TestCase):
         self.assertNotIn("hardcoded-tunable", self.java(source.replace("RETRY_BACKOFF = 30", "COLUMN_TITLE = 3")))
 
     def test_runtime_duration_and_endpoint(self):
-        source = 'package app.service.demo;\nclass Demo {\npublic void run() { client.uri("https://fixture.invalid"); sleep(Duration.ofSeconds(5)); }\n}'
+        source = 'package app.services.demo;\nclass Demo {\npublic void run() { client.uri("https://fixture.invalid"); sleep(Duration.ofSeconds(5)); }\n}'
         self.assertTrue({"hardcoded-endpoint", "hardcoded-runtime-duration"}.issubset(self.java(source)))
         self.assertNotIn("hardcoded-endpoint", self.java(source.replace('"https://fixture.invalid"', "properties.getUrl()")))
 
@@ -162,11 +162,11 @@ class JavaBoundaryTests(unittest.TestCase):
     def test_unused_integration_and_business_bypass(self):
         files = {"src/main/java/app/integration/zotero/ZoteroClient.java": "public interface ZoteroClient {}",
                  "src/main/java/app/integration/zotero/impl/ZoteroClientImpl.java": "class ZoteroClientImpl implements ZoteroClient {}",
-                 "src/main/java/app/service/zotero/Service.java": "package app.service.zotero;\nclass Service { private WebClient client; }"}
+                 "src/main/java/app/services/zotero/Service.java": "package app.services.zotero;\nclass Service { private WebClient client; }"}
         self.assertTrue({"integration-not-wired", "integration-bypass"}.issubset(self.codes(files)))
         files["src/test/java/app/ClientTest.java"] = "class ClientTest { private ZoteroClient client; }"
         self.assertIn("integration-not-wired", self.codes(files))
-        files["src/main/java/app/service/zotero/Service.java"] = "class Service { private ZoteroClient client; }"
+        files["src/main/java/app/services/zotero/Service.java"] = "class Service { private ZoteroClient client; }"
         self.assertNotIn("integration-not-wired", self.codes(files))
 
     def test_replacement_character_java_sql_yaml_and_comment_checker(self):

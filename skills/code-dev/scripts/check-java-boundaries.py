@@ -230,7 +230,7 @@ def analyze(sources, config_keys):
             report(source, interface.start(), "integration-not-wired",
                    f"集成接口 `{name}` 有实现但未发现生产类型使用；核对注入、Bean 装配或反射注册，测试引用不算业务接入")
             for other in sources:
-                if re.search(r"\.service\." + re.escape(provider) + r"\b", other.code) and re.search(r"\b(?:WebClient|HttpClient|RestClient|RestTemplate)\b", other.code):
+                if re.search(r"\.services?\." + re.escape(provider) + r"\b", other.code) and re.search(r"\b(?:WebClient|HttpClient|RestClient|RestTemplate)\b", other.code):
                     report(other, 0, "integration-bypass",
                            f"同领域已有 `{name}`，业务层却直接使用 HTTP 客户端且接口未接入，核对重复协议实现")
     return findings

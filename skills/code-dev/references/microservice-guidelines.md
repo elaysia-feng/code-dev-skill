@@ -12,9 +12,9 @@ Example:
 
 ```text
 project-parent/
-├── order-service/
-├── product-service/
-├── user-service/
+├── order-services/
+├── product-services/
+├── user-services/
 └── common-api/             # optional, only when genuinely shared
 ```
 
@@ -26,13 +26,13 @@ First identify how the Maven project organizes business code.
 
 ### Normal service module
 
-If each microservice is a regular Spring module, business contracts live under `service/`, with implementations under `impl/`:
+If each microservice is a regular Spring module, business contracts live under `services/`, with implementations under `impl/`:
 
 ```text
 com.example.order/
 ├── controller/
 ├── dto/
-├── service/
+├── services/
 │   ├── OrderService.java
 │   └── impl/
 │       └── OrderServiceImpl.java
@@ -59,7 +59,7 @@ community.biz/
             └── LikeStreamRelayImpl.java
 ```
 
-Do not add another nested `service/` package inside a dedicated `biz` domain merely to imitate a monolith. The `biz/<domain>/` package itself is the business-contract boundary.
+Do not add another nested `services/` package inside a dedicated `biz` domain merely to imitate a monolith. The `biz/<domain>/` package itself is the business-contract boundary.
 
 In both layouts, callers depend on interfaces, not implementation classes.
 

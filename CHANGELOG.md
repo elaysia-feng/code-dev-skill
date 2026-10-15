@@ -4,6 +4,12 @@ All notable changes to this skill are recorded here. The version is kept in
 sync between `package.json` and `plugin.json`; a release is incomplete unless
 both are bumped.
 
+## 1.3.6
+
+- 新增全局 `code-dev update` 命令，一次下载并更新 Claude Code 与 Codex 用户级 skill。
+
+- 将业务包命名规范统一为 `services/`，同步示例、评估用例及 Java 边界检查器；检查器兼容既有 `service/` 包。
+
 ## 1.3.5
 
 - 强化多领域跨层分包要求，领域前缀不能代替 request、response、entity、mapper 等层的领域归属。

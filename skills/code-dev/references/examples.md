@@ -7,7 +7,7 @@ These examples illustrate required boundaries, not complete production implement
 For an ordinary monolithic Spring project, business services use a contract plus implementation:
 
 ```text
-service/
+services/
 ├── OrderService.java
 └── impl/
     └── OrderServiceImpl.java
@@ -288,7 +288,7 @@ common-api/
 Bad:
 
 ```text
-base-service/
+base-services/
 ├── OrderValidator.java
 ├── ProductValidator.java
 └── UserBusinessHelper.java

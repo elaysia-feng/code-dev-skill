@@ -5,7 +5,7 @@
     {
       "id": 1,
       "prompt": "Create a new monolithic Spring Boot project and add an order business service.",
-      "expected_output": "Create the OrderService interface under service/ and OrderServiceImpl under service/impl/; controllers and other business callers must depend on OrderService and must never depend on the impl directly."
+      "expected_output": "Create the OrderService interface under services/ and OrderServiceImpl under services/impl/; controllers and other business callers must depend on OrderService and must never depend on the impl directly."
     },
     {
       "id": 2,
@@ -109,8 +109,8 @@
     },
     {
       "id": 22,
-      "prompt": "My old project uses a services/ package name; should I migrate it to service/ as you said?",
-      "expected_output": "先说明涉及包路径、导入和调用方的迁移范围，询问是否全量迁移。同意后迁移并验证；不同意时保留 services/，仅新增部分遵循规范，复用旧业务边界且不复制实现。"
+      "prompt": "My old project uses a service/ package name; should I migrate it to services/ as you said?",
+      "expected_output": "先说明涉及包路径、导入和调用方的迁移范围，询问是否全量迁移。同意后迁移并验证；不同意时保留 service/，仅新增部分遵循规范，复用旧业务边界且不复制实现。"
     },
     {
       "id": 23,
@@ -204,23 +204,23 @@
     },
     {
       "id": 41,
-      "prompt": "本会话已同意迁移 services/ 为 service/，请执行，不再重复确认。",
+      "prompt": "本会话已同意迁移 service/ 为 services/，请执行，不再重复确认。",
       "expected_output": "直接完成已授权的包迁移并更新调用方，验证相关导入、构建和行为；不重复询问，不扩大到其他模块。"
     },
     {
       "id": 42,
-      "prompt": "普通 Spring 单体中新增 TaskContext record，只有 taskId、payload 字段，从任务执行器传给多个 Handler。能直接放 service/task 吗？",
-      "expected_output": "不能仅因服务使用它就放 service。它是内部组件间传递的纯数据契约，应归 dto/internal/task 或项目明确约定的等价契约包；不是 HTTP response，也不是数据库 entity，不添加业务接口。只创建实际需要的目录。"
+      "prompt": "普通 Spring 单体中新增 TaskContext record，只有 taskId、payload 字段，从任务执行器传给多个 Handler。能直接放 services/task 吗？",
+      "expected_output": "不能仅因服务使用它就放 services。它是内部组件间传递的纯数据契约，应归 dto/internal/task 或项目明确约定的等价契约包；不是 HTTP response，也不是数据库 entity，不添加业务接口。只创建实际需要的目录。"
     },
     {
       "id": 43,
       "prompt": "MetadataFingerprint 保存规范化标题和作者，并提供归一化、相似度比较，未映射数据库。放 entity 还是 service？",
-      "expected_output": "按职责识别为非持久化领域值对象，普通分层项目归 domain/intelligence/model 或已有明确等价领域模型位置；不因有字段就放 entity，不因有方法就放 service 或强加 interface/impl。"
+      "expected_output": "按职责识别为非持久化领域值对象，普通分层项目归 domain/intelligence/model 或已有明确等价领域模型位置；不因有字段就放 entity，不因有方法就放 services 或强加 interface/impl。"
     },
     {
       "id": 44,
       "prompt": "Parser 里嵌套 public record RawFilter，AnalysisServiceImpl 需要构造它。这样就不用管 DTO 归属了吧？",
-      "expected_output": "公开嵌套类型不豁免归属审查。检查字段、调用和边界：外部模型协议数据归 integration 的模型或契约所有者，内部纯传递契约归 dto/internal；不能因嵌套在 Parser 或被 service 使用就认定归属正确。仅审查时报告，不自行迁移。"
+      "expected_output": "公开嵌套类型不豁免归属审查。检查字段、调用和边界：外部模型协议数据归 integration 的模型或契约所有者，内部纯传递契约归 dto/internal；不能因嵌套在 Parser 或被 services 使用就认定归属正确。仅审查时报告，不自行迁移。"
     },
     {
       "id": 45,
@@ -229,7 +229,7 @@
     },
     {
       "id": 46,
-      "prompt": "审查 service 包里的多个字段型对象、public 嵌套 record、状态常量；两个现有检查器都返回 0，能说结构合规吗？",
+      "prompt": "审查 services 包里的多个字段型对象、public 嵌套 record、状态常量；两个现有检查器都返回 0，能说结构合规吗？",
       "expected_output": "不能。手工核对顶层和暴露的嵌套类型的字段、行为、调用方及签名，分别判断 DTO、领域值对象、状态枚举、配置或集成模型的归属，列出错误位置和依据；检查器没有覆盖该边界，已有错误位置不构成约定。没有迁移授权不改业务项目。"
     },
     {
@@ -254,7 +254,7 @@
     },
     {
       "id": 51,
-      "prompt": "现有 Java 项目使用 order/dto/request、order/service/impl、payment/dto/response 的领域优先布局。按 skill 整理是不是必须改成全局 dto/request/order？",
+      "prompt": "现有 Java 项目使用 order/dto/request、order/services/impl、payment/dto/response 的领域优先布局。按 skill 整理是不是必须改成全局 dto/request/order？",
       "expected_output": "保留一致的领域优先布局，不引入竞争的全局分层目录。审查的是领域归属与职责边界，而非机械匹配唯一目录树。"
     },
     {

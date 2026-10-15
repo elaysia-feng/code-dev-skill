@@ -133,6 +133,8 @@ function installer(dir, args, download) {
       return require(name);
     },
   };
+  context.module = { exports: {} };
+  context.require.main = context.module;
   try {
     vm.runInNewContext(fs.readFileSync(path.join(root, 'bin/install.js'), 'utf8'), context);
   } catch (error) {
@@ -143,7 +145,8 @@ function installer(dir, args, download) {
 
 test('目录参数始终表示项目根目录，直接目录选项独立', t => {
   const dir = workspace(t);
-  assert.equal(installer(dir, []).status, 0);
+  const initial = installer(dir, []);
+  assert.equal(initial.status, 0, initial.logs.join("\n"));
   assert.ok(fs.existsSync(path.join(dir, '.claude/skills/code-dev/SKILL.md')));
   const project = path.join(dir, 'new-project');
   assert.equal(installer(dir, [project]).status, 0);
