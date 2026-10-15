@@ -206,6 +206,36 @@
       "id": 41,
       "prompt": "本会话已同意迁移 services/ 为 service/，请执行，不再重复确认。",
       "expected_output": "直接完成已授权的包迁移并更新调用方，验证相关导入、构建和行为；不重复询问，不扩大到其他模块。"
+    },
+    {
+      "id": 42,
+      "prompt": "普通 Spring 单体中新增 TaskContext record，只有 taskId、payload 字段，从任务执行器传给多个 Handler。能直接放 service/task 吗？",
+      "expected_output": "不能仅因服务使用它就放 service。它是内部组件间传递的纯数据契约，应归 dto/internal/task 或项目明确约定的等价契约包；不是 HTTP response，也不是数据库 entity，不添加业务接口。只创建实际需要的目录。"
+    },
+    {
+      "id": 43,
+      "prompt": "MetadataFingerprint 保存规范化标题和作者，并提供归一化、相似度比较，未映射数据库。放 entity 还是 service？",
+      "expected_output": "按职责识别为非持久化领域值对象，普通分层项目归 domain/intelligence/model 或已有明确等价领域模型位置；不因有字段就放 entity，不因有方法就放 service 或强加 interface/impl。"
+    },
+    {
+      "id": 44,
+      "prompt": "Parser 里嵌套 public record RawFilter，AnalysisServiceImpl 需要构造它。这样就不用管 DTO 归属了吧？",
+      "expected_output": "公开嵌套类型不豁免归属审查。检查字段、调用和边界：外部模型协议数据归 integration 的模型或契约所有者，内部纯传递契约归 dto/internal；不能因嵌套在 Parser 或被 service 使用就认定归属正确。仅审查时报告，不自行迁移。"
+    },
+    {
+      "id": 45,
+      "prompt": "一个 ServiceImpl 内的 private record MatchCandidate 仅给其私有匹配过程传递临时分数和索引，要单独建 dto 文件吗？",
+      "expected_output": "不需要。仅实现内部使用、不暴露契约且不承载独立领域或集成语义的临时元组可保留 private 嵌套；不为统一目录新增文件或空包。不能据此允许共享模型、ORM 实体或独立领域值对象藏进实现。"
+    },
+    {
+      "id": 46,
+      "prompt": "审查 service 包里的多个字段型对象、public 嵌套 record、状态常量；两个现有检查器都返回 0，能说结构合规吗？",
+      "expected_output": "不能。手工核对顶层和暴露的嵌套类型的字段、行为、调用方及签名，分别判断 DTO、领域值对象、状态枚举、配置或集成模型的归属，列出错误位置和依据；检查器没有覆盖该边界，已有错误位置不构成约定。没有迁移授权不改业务项目。"
+    },
+    {
+      "id": 47,
+      "prompt": "项目契约明确指定 DTO 扁平放 dto/request 和 dto/response，领域枚举放 entity/<domain>/enums；审查时能按 skill 改成按领域分包吗？",
+      "expected_output": "保留明确项目契约；不机械生成第二套 DTO 或枚举布局。该约定不自动允许 service 成为模型容器，未约定的内部契约仍需按职责确定位置。审查只报告，既有结构迁移遵循授权范围。"
     }
   ]
 }

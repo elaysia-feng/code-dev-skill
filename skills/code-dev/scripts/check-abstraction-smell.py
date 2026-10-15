@@ -40,6 +40,59 @@ import subprocess
 import tempfile
 from collections import defaultdict
 from pathlib import Path
+from check_comments import _split_java_views
+
+
+def _framework_interface(content):
+    """识别 MP BaseMapper 与显式注册的 Mapper 代理，不能仅凭类名豁免。
+
+    Args:
+        content: 完整 Java 原文，注释及字符串中的声明不会参与判定。
+
+    Returns:
+        存在 MP 基类或显式 Mapper 注册证据时返回 True；不证明实际装配成功。
+    """
+    code = "\n".join(_split_java_views(content.splitlines())[0])
+    mp_mapper = (("com.baomidou.mybatisplus.core.mapper.BaseMapper" in code
+                  or "com.baomidou.mybatisplus.core.mapper.*" in code)
+                 and re.search(r"\bextends\s+(?:com\.baomidou\.mybatisplus\.core\.mapper\.)?BaseMapper\s*<", code))
+    registered_mapper = ("org.apache.ibatis.annotations.Mapper" in code
+                         and re.search(r"@(?:org\.apache\.ibatis\.annotations\.)?Mapper\b", code))
+    return bool(mp_mapper or registered_mapper)
+
+
+def _http_boundary(content):
+    """识别 Spring HTTP 接入边界，避免建议把控制器内联进调用方。
+
+    Args:
+        content: 待分析的 Java 原文，不依赖文件名判断职责。
+
+    Returns:
+        存在 Spring 类型证据及控制器注解时返回 True。
+    """
+    code = "\n".join(_split_java_views(content.splitlines())[0])
+    return ("org.springframework" in code
+            and re.search(r"@(?:[\w.]+\.)?(?:RestController|Controller)\b", code) is not None)
+
+
+def _method_boundary(content, line_index):
+    """保留承担 Spring 事务、装配或事件入口职责的薄方法。
+
+    Args:
+        content: 完整 Java 原文，用于查找声明紧邻的注解。
+        line_index: 方法声明的 0 起始行下标。
+
+    Returns:
+        有已识别的框架边界注解时返回 True，不证明代理执行路径正确。
+    """
+    code = "\n".join(_split_java_views(content.splitlines())[0])
+    if "org.springframework" not in code:
+        return False
+    offset = sum(len(line) + 1 for line in code.splitlines()[:line_index])
+    previous = max(code.rfind(";", 0, offset), code.rfind("}", 0, offset), code.rfind("{", 0, offset)) + 1
+    return re.search(r"@(?:[\w.]+\.)?(?:Bean|Transactional|Async|Cacheable|CacheEvict|"
+                     r"ExceptionHandler|EventListener|Scheduled|PreAuthorize|PostAuthorize)\b",
+                     code[previous:offset]) is not None
 
 def _strip_generics(text: str) -> str:
     """去除泛型类型参数，含嵌套的尖括号。
@@ -134,6 +187,7 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
     results = []
     java_files = file_list if file_list is not None else _rglob_filtered(root, "*.java")
     interfaces = {}
+    framework_interfaces = set()
     implementations = defaultdict(set)  # 用 set 去重
 
     # 1. 逐行扫描源码，同时登记接口声明与实现关系
@@ -166,6 +220,8 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
                 iface_match = re.search(r'(?<!\w)interface\s+(\w+)', line)
                 if iface_match:
                     interfaces[iface_match.group(1)] = str(f.relative_to(root))
+                    if _framework_interface(content):
+                        framework_interfaces.add(iface_match.group(1))
 
             # 1.3 匹配实现了接口的 class/record/enum 声明
             m = re.search(r'\b(?:class|record|enum)\s+(\w+)(?:(?!\b(?:class|record|enum|interface)\b).)*\bimplements\s+(.+)', line)
@@ -230,7 +286,7 @@ def find_single_impl_interfaces(root: Path, file_list: list[Path] | None = None)
 
     # 3. 报告项目里声明了却从未被实现的接口
     for iface_name, file_path in interfaces.items():
-        if iface_name not in implementations:
+        if iface_name not in implementations and iface_name not in framework_interfaces:
             results.append({
                 "type": "single_impl_interface",
                 "severity": "info",
@@ -453,6 +509,9 @@ def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -
         except (OSError, UnicodeDecodeError):
             continue
 
+        if _http_boundary(content):
+            continue
+
         # 1. 匹配 Java 方法签名，允许方法上方有若干注解
         # 1.1 逐行扫描：见到方法签名就转去检查它的方法体
         lines = content.split('\n')
@@ -484,6 +543,7 @@ def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -
                 i += 1
                 continue
             method_name = m.group(2)
+            method_boundary = _method_boundary(content, i)
             # 2. 收集方法体（用花括号配对粗略计数）
             brace_count = 0
             open_pos = None
@@ -533,7 +593,7 @@ def find_pass_through_methods(root: Path, file_list: list[Path] | None = None) -
             stripped = [l.strip() for l in body.split('\n')
                         if l.strip() and not l.strip().startswith('//') and l.strip() not in ('}', '};')]
             # 3. 方法体只剩一条 return 委托语句时判为转发包装
-            if len(stripped) == 1 and re.match(r'^return\s+(?:await\s+)?(?:new\s+)?\w+(?:\.\w+)+\(', stripped[0]):
+            if not method_boundary and len(stripped) == 1 and re.match(r'^return\s+(?:await\s+)?(?:new\s+)?\w+(?:\.\w+)+\(', stripped[0]):
                 results.append({
                     "type": "pass_through",
                     "severity": "info",

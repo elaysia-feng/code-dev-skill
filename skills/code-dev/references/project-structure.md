@@ -55,7 +55,7 @@ Responsibilities:
 - `dto/request/` — incoming API models.
 - `dto/response/` — outgoing API models.
 - `service/` — business contracts; implementations live in `impl/`.
-- `mapper/` — persistence access when using MyBatis/MyBatis-Plus style mappers.
+- `mapper/` — persistence access when using MyBatis-Plus (MP) mappers.
 - `entity/` — persistence models.
 - `config/` — framework/infrastructure configuration.
 - `exception/` — project/domain exceptions when they have clear ownership.
@@ -64,7 +64,35 @@ Responsibilities:
 
 When several domains or substantial modules exist, subdivide the relevant layer by domain rather than accumulating unrelated files: for example `controller/order/`, `dto/request/order/`, `dto/response/order/`, `service/order/impl/`, `mapper/order/` and `entity/order/`. A cohesive single-domain module may keep a shallow layout. Existing domain-first layouts may place these responsibilities under `order/`; preserve that consistent ownership rather than adding a second layout. The business interface and implementation remain paired under their owner.
 
-Create `mapper/` only when the project uses mapper-based persistence. A JPA or other persistence framework keeps its actual repository/access boundary instead of adding MyBatis-shaped packages. No persistence layer is required for an application without persistence. DTOs, entities, enums and configuration remain distinct responsibilities; do not place them together just because a service uses them.
+Create `mapper/` only when the project uses mapper-based persistence. A JPA or other persistence framework keeps its actual repository/access boundary instead of adding MP-shaped packages. No persistence layer is required for an application without persistence. DTOs, entities, enums and configuration remain distinct responsibilities; do not place them together just because a service uses them.
+
+### Java type ownership
+
+`service/` owns business contracts and orchestration implementations. It is not the default home for every type consumed or produced by a service. Classify a type from its fields, behavior, annotations, callers and method signatures; `record`, Lombok `@Data`, a `Context`/`Result`/`Model` suffix, or proximity to a caller does not establish ownership.
+
+For an ordinary layer-first Spring project, use these owners. Reuse an explicitly established equivalent owner in a domain-first layout; do not introduce a parallel layout. Dedicated multi-module ownership is described below.
+
+| Type responsibility | Owner | Boundary |
+|---|---|---|
+| HTTP input/output data | `dto/request/<domain>/`, `dto/response/<domain>/` | Keep transport contracts separate from persistence and service implementations. |
+| Pure internal command, task context or service result passed between components | `dto/internal/<domain>/` | No HTTP exposure is required to be a DTO; do not disguise internal contracts as HTTP responses. Existing message contracts use the actual message owner, such as `dto/message/<domain>/`. |
+| Non-persistent domain value, state or invariant | `domain/<domain>/model/` | A value object may own normalization, equality or invariant behavior without becoming a service or requiring an interface. Do not give it ORM annotations merely to fit `entity/`. |
+| Database-mapped entity | `entity/<domain>/` | Requires actual persistence responsibility; fields alone do not make a type an entity. |
+| Domain state enum or fixed domain constants | The existing domain-owned `enums/` or `constants/`; otherwise `domain/<domain>/enums/` or `domain/<domain>/constants/` | Do not accumulate these in `service/` or global `CommonConstants`. Tunable parameters still belong in configuration, never constants. |
+| External provider payload, raw response or parser model | `integration/<provider>/model/` or the established integration contract owner | Business orchestration consumes the integration boundary; it must not become the owner of provider protocol types. |
+| Framework configuration or bound settings | `config/` or the established infrastructure configuration owner | Do not place settings in a service model or a constants holder. |
+
+The paths above are destinations for actual types, not a directory-generation template. Preserve explicit project conventions and migration scope from the entrypoint. An existing package name or an agent-generated type's current location is not itself a convention overriding these rules. In a dedicated `*.biz` project, put contract data in the DTO module and domain values/states in the domain module; do not create model containers in Biz merely because it calls them.
+
+Nested-type exception:
+
+- A `private` nested/local record or class may remain with one implementation when it is a temporary intermediate result, never appears in an exposed contract and has no independent domain or integration ownership. Do not create an extra file solely to eliminate such a local tuple.
+- A public/protected nested record used by another component is a shared type, even if its only callers are services. Move it to its actual contract/domain/integration owner within authorized migration scope. Do not wrap a public model inside `*ServiceImpl`, a parser or a validator to evade placement rules.
+- Access modifiers alone do not determine ownership: a private ORM entity, provider schema or independent domain value still belongs to its actual owner. Conversely, a meaningful domain value object does not gain an `interface + impl/` pair merely because it has methods.
+
+For example, in a layer-first project, a field-only `TaskContext` passed from a worker to handlers belongs in `dto/internal/task/`; a metadata fingerprint with normalization and comparison invariants belongs in `domain/intelligence/model/`; an externally consumed raw model response belongs to the integration owner. A private `MatchCandidate` tuple used only inside one matching implementation may remain nested. Do not change existing names or public contracts merely to achieve these placements.
+
+During review, enumerate the misplaced top-level/exposed nested types with evidence and intended ownership. Do not conclude that all field-bearing classes are entities, move every internal type to `dto/response/`, or regard a checker exit code as proof of correct placement.
 
 ### Multi-Maven / multi-module project with dedicated `*.biz`
 
@@ -206,7 +234,7 @@ middleware-arena-community/
 |---|---|---|
 | `community.dto` | 请求、响应和消息契约 | 不依赖业务实现、Mapper 或 Web |
 | `community.domain` | 持久化实体与领域定义 | 不依赖 Web 或业务实现 |
-| `community.mapper` | MyBatis 数据访问；复杂 SQL 确有需要时放在 `src/main/resources/mapper/` | 使用 `domain`，不调用业务层 |
+| `community.mapper` | MyBatis-Plus（MP）数据访问；复杂 SQL 确有需要时放在 `src/main/resources/mapper/` | 使用 `domain`，不调用业务层 |
 | `community.biz` | 业务接口与实现、Redis 状态、消息消费及事件投递 | 使用 DTO、领域定义和 Mapper，不依赖 Web |
 | `community.web` | Spring Boot 启动、Controller、Web 配置和应用配置 | 调用业务接口，使用 DTO；Controller 不直接调用 Mapper |
 | `community.test` | 跨模块 API 冒烟或集成测试 | 测试代码放在 `src/test/`；仅测试依赖应用模块 |

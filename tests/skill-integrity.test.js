@@ -7,6 +7,14 @@ const { spawnSync } = require('node:child_process');
 const skillRoot = path.resolve(__dirname, '../skills/code-dev');
 const python = process.env.READABILITY_PYTHON || 'python';
 
+test('检查器行为回归覆盖访问器、MP、事务、配置、乱码与真实索引门禁', () => {
+  const result = spawnSync(python, ['-X', 'utf8', '-B', '-m', 'unittest', 'discover',
+    '-s', path.join(skillRoot, 'evals'), '-p', 'test_*.py'], {
+    encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  assert.equal(result.status, 0, result.error?.message || result.stdout + result.stderr);
+});
+
 function filesUnder(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const file = path.join(dir, entry.name);

@@ -78,7 +78,7 @@ Exit codes:
 | 1 | 有 ERROR，或指定 `--fail-on warning` 时有 WARNING | 修正真实问题后重跑；豁免项说明源码依据 |
 | 2 | No `.java` / `.py` files matched | **Not the same as "no problems"** — check that the path is correct |
 
-There are only two kinds of ERROR: the file cannot be parsed or read (a tool failure), and a TODO marker is missing its owner or its description. Fix the file in the first case; in the second, complete the marker into `TODO(owner): description` — never delete the TODO itself.
+ERROR covers parsing/reading failure, literal U+FFFD replacement characters already saved in source, and TODO markers missing an owner or description. Restore corrupted text rather than merely re-encoding it; intentional replacement-character fixtures use Unicode escapes. Complete malformed markers into `TODO(owner): description` — never delete the TODO itself. Direct field-only JavaBean getter/setter methods are exempt from missing Javadoc; a matching method name with validation, I/O, delegation or other business behavior is not exempt.
 
 检查器覆盖 Java/Python，根据行数和分支数提示疑似缺少阶段注释，并检查已写编号的重复、跳号及父子顺序。步骤检查独立于公开契约文档检查，也覆盖私有函数；它不能证明业务阶段完整、说明正确或中文确为简体。短函数、嵌套内部函数、Java 无修饰符或复杂声明等启发式解析未覆盖的情况必须人工核对。TypeScript 的契约与流程编号均人工核对，不假称工具覆盖。
 

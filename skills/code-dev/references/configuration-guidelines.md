@@ -30,4 +30,6 @@ These mandatory rules apply to implementation, refactoring and review in Java, P
 
 ## Validation
 
+Run `scripts/check-java-boundaries.py <project-root> --fail-on warning` from the skill directory for Java/Spring projects. Its findings locate duplicate bound-field/file defaults, annotation fallbacks and recognized tunable fields, durations and endpoint literals; diagnostic messages do not print source values. This is a heuristic inventory, not full Spring configuration evaluation. Examine each WARNING, document real protocol/invariant exemptions, and still verify profile selection and override behavior below.
+
 Use secret-free temporary configuration to verify loading, override precedence and missing required settings across all three environments. Verify Spring Boot profiles, ASP.NET Core environment names and configuration providers, or the actual startup loader for other projects. Check that production does not accidentally select development resources and that frontend artifacts and committed contents contain no secrets. Report validation methods and unverified items.

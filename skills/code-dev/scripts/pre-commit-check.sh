@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # code-dev 提交钩子：检查本次暂存的 Java / Python 代码。
 #
-# 默认只提示不阻断。两种情况始终阻断，因为它们不是"风格问题"，
+# 默认仅提示风格与边界 WARNING。下列情况始终阻断，因为它们不是"风格问题"，
 # 而是"检查根本没做完"，放过等于给出一个假的绿灯：
-#   - 源文件不是 UTF-8，两个检查器都读不了它
-#   - check_comments.py 报出 ERROR（语法错误 / 读取失败 / 待办缺负责人）
+#   - 源文件不是 UTF-8 或已含 U+FFFD 替换字符
+#   - 检查器报出 ERROR 或无法完成检查（语法 / 读取 / 待办缺负责人等）
 #
-# 两个检查器都读**索引**内容而不是工作区。传工作区路径是行不通的：
+# 三个检查器都读**索引**内容而不是工作区。传工作区路径是行不通的：
 # "暂存违规内容后再把工作区改干净"能绕过门禁，而"暂存干净内容但还在编辑"
 # 会误拦一个本来干净的提交。
 #
 # READABILITY_FAIL_ON=warning 或 READABILITY_FIRST_STRICT=1 时，
-# 两个检查器的 WARNING 都会阻断；COMMENT_FAIL_ON 可单独设置注释阈值。
+# 抽象和边界检查的 WARNING 会阻断；COMMENT_FAIL_ON 可单独设置注释阈值。
+# READABILITY_FIRST_STRICT=1 同时把三个检查器的 WARNING 都设为阻断。
 set -euo pipefail
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
@@ -77,7 +78,7 @@ fi
 
 # 3. 注释检查器：读暂存区内容。
 #    早先这里既没跑注释检查器、又是按工作区路径跑的，所以注释规范在提交
-#    卡点上先是无覆盖、后是可绕过 —— 而它恰恰是唯一带 ERROR 语义的检查器。
+#    卡点上先是无覆盖、后是可绕过，因此必须保留真实索引读取路径。
 COMMENT=""
 if ! COMMENT="$(find_checker check_comments.py)"; then
   COMMENT=""
@@ -103,6 +104,23 @@ else
       STATUS=$rc
     }
   fi
+fi
+
+# 4. Java 运行边界与跨语言源码编码检查：使用完整索引作上下文。
+BOUNDARY=""
+if ! BOUNDARY="$(find_checker check-java-boundaries.py)"; then
+  BOUNDARY=""
+fi
+if [ -z "$BOUNDARY" ]; then
+  echo '[code-dev] 找不到 check-java-boundaries.py，跳过运行边界检查。'
+  [ "${READABILITY_FIRST_STRICT:-0}" = "1" ] && exit 1
+else
+  BOUNDARY_THRESHOLD=error
+  if [ "${READABILITY_FIRST_STRICT:-0}" = "1" ] || [ "$FAIL_ON" = "warning" ] || [ "$FAIL_ON" = "info" ]; then
+    BOUNDARY_THRESHOLD=warning
+  fi
+  echo '[code-dev] Java 边界与源码编码检查（暂存区）：'
+  "$PYTHON_BIN" "$BOUNDARY" "$PROJECT_ROOT" --staged --fail-on "$BOUNDARY_THRESHOLD" || STATUS=$?
 fi
 
 exit "$STATUS"

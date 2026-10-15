@@ -4,6 +4,14 @@ All notable changes to this skill are recorded here. The version is kept in
 sync between `package.json` and `plugin.json`; a release is incomplete unless
 both are bumped.
 
+## 1.3.4
+
+- 明确 Java 数据契约、领域值对象和嵌套类型的归属，禁止把 service 包作为模型容器。
+- 明确 MyBatis-Plus（MP）Mapper 代理边界，修复简单访问器、Controller 和框架边界薄方法的误报。
+- 新增 Java 边界检查器，覆盖事务自调用、重复默认值、疑似硬编码和未接入的集成组件。
+- 源码乱码检测覆盖 UTF-8 中已保存的替换字符，提交钩子使用索引内容检查 Java、SQL 和配置文件。
+- 增加 35 项 Python 检查器回归测试；更新失败保护测试在 Windows 上使用目录联接。
+
 ## 1.3.3
 
 Fixes three defects introduced by 1.3.1 and 1.3.2, all found by an independent

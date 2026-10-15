@@ -29,9 +29,11 @@ Explicit user requirements override this skill. Existing style alone does not ju
 These must be enforced for implementation, review and refactoring:
 
 - **Project structure must follow [`references/project-structure.md`](references/project-structure.md)** for the relevant language and application type; existing structure changes follow the migration rule above.
+- **Java service packages are not model containers**: classify top-level and exposed nested types by responsibility before placement. DTOs, domain value objects, enums, constants and integration payloads belong to their explicit owners, not `service/` merely because a service uses them. Apply the [Java type ownership rules](references/project-structure.md#java-type-ownership); private implementation-only temporary records have a narrow exception.
 - **Java business components must always be `interface + impl/`**; a single implementation is not a reason to skip the interface.
+- **Use MyBatis-Plus (MP) when mapper-based persistence is selected for a new Spring project**; preserve another explicitly chosen persistence framework. MP `BaseMapper` interfaces are framework proxies and do not need handwritten `impl/` classes. See [Java persistence rules](references/java-guidelines.md#mybatis-plus-mp-persistence).
 - 新增和修改的说明性注释使用简体中文；不顺带翻译未修改的历史注释。多阶段方法按真实流程使用 `1.`、`1.1` 等编号，私有方法和短方法也按业务阶段判断，不能仅因行数少而省略。
-- **Source files must always be UTF-8**, with or without a BOM. Neither checker can analyse a file it cannot decode, so a non-UTF-8 source file is reported and rejected rather than quietly passed over.
+- **Source files must always be UTF-8**, with or without a BOM. Checkers reject undecodable files rather than silently skipping them. Literal U+FFFD replacement characters also fail source validation even when the file decodes; restore the original text rather than merely changing its encoding.
 - **SQL schema documentation is mandatory**: initialization and migration DDL must describe each table's purpose and each column's meaning using database metadata comments plus a trailing `-- ` explanation on every column definition. Use dialect-supported syntax; see [`references/sql-guidelines.md`](references/sql-guidelines.md). Descriptions are in Simplified Chinese, while skill instructions remain in English.
 - **Externalize configuration and separate development, test and production environments**: keep shared defaults separate from environment differences and use the framework's native configuration mechanism. TS/Python may use `.env` files, Spring Boot uses YAML and profiles, ASP.NET Core uses `appsettings` files, and C++ uses the project's JSON, TOML, INI or equivalent format. Wire up and verify actual loading; see [`references/configuration-guidelines.md`](references/configuration-guidelines.md).
 - **No hardcoded configuration or business magic values**: externalize environment values, tunable parameters and secrets. Represent fixed business states and repeated values with meaningful domain constants or enums. Moving configurable values into constants still counts as hardcoding; extracting every number or string is not required.
@@ -107,10 +109,23 @@ Use `--staged` when the working tree and the index differ — it reads what woul
 
 `check-abstraction-smell.py` exits `0` below the threshold, `1` when `--fail-on` is reached, and `2` when a source file cannot be decoded.
 
-可选 Git hook：将 `scripts/pre-commit-check.sh` 合并到现有 hook，不覆盖。它检查暂存内容；设置 `READABILITY_FIRST_STRICT=1` 时两个检查器的 WARNING 都会阻断，也可单独设置 `COMMENT_FAIL_ON=warning`。默认只阻断注释 ERROR 和读取失败；不能把 hook 放行当成规范通过。
+可选 Git hook：将 `scripts/pre-commit-check.sh` 合并到现有 hook，不覆盖。三个检查器均检查索引内容；设置 `READABILITY_FIRST_STRICT=1` 时三个检查器的 WARNING 都会阻断，也可单独设置 `COMMENT_FAIL_ON=warning`。默认阻断 ERROR 和检查失败，包括受支持 SQL、配置文件中的乱码；不能把 hook 放行当成规范通过。此模板的修改不代表已经替项目安装了 hook。
 
 完成前逐个核对本次新增或修改的函数：公开契约是否需要文档、多阶段流程是否有编号、父子层级是否真实、关键边界/失败原因是否说明。覆盖短函数和私有函数；简单访问器、单步函数、纯转发可以豁免。说明 WARNING 的处理与未验证部分，不用无意义注释消除提示。
 
 Before finishing, confirm that the requirements have been delivered, that the mandatory rules have been checked one by one, and state what has not yet been verified.
 
-Configuration, hardcoding and Java annotation rules require manual review; existing checkers do not cover them. For configuration changes, also verify development/test/production selection, overrides, missing required values and prevention of production fallback to development configuration. Use no real production credentials or connections during validation.
+Run the Java boundary and source-encoding checker in addition to the comment and abstraction checkers:
+
+```sh
+python <skill-dir>/scripts/check-java-boundaries.py <project-root> --fail-on warning
+python <skill-dir>/scripts/check-java-boundaries.py <project-root> --staged --fail-on warning
+```
+
+It checks direct same-class calls to transaction-annotated methods, duplicate Java/YAML/properties configuration defaults, likely hardcoded runtime parameters/endpoints, and integration interfaces with implementations but no production type consumers (including likely HTTP bypasses in the same service domain). It also rejects non-UTF-8 files and literal U+FFFD replacement characters in supported source/config/SQL files. Use Unicode escapes for an intentional replacement-character fixture. `--json` produces machine-readable findings without printing source configuration values. Exit `1` means the selected threshold was reached; `2` means scanning failed or no supported files matched. No staged supported changes returns `0` with a zero count, not a compliance claim.
+
+These Java checks are conservative lexical heuristics, not a compiler or Spring runtime. Transaction analysis covers direct bare/`this` calls and `this::method`, not full interprocedural/overload/receiver resolution. Configuration matching supports ordinary YAML leaf keys and `.properties`, not full Spring binding, YAML anchors, nested configuration objects or environment precedence. Hardcoding checks target recognized fields, duration/client calls and runtime annotations; they do not identify every magic value or secret. Integration usage includes production type references and explicit wiring, not reflective or dynamic registration; such cases require evidence-based exemptions. Tests do not count as production consumers. No WARNING may be silently treated as a confirmed defect or ignored.
+
+Manually review unresolved configuration, hardcoding and Java annotation behavior after scanning. For configuration changes, verify development/test/production selection, overrides, missing required values and prevention of production fallback to development configuration. For transaction changes, verify proxy call paths and rollback behavior. Use no real production credentials or connections during validation. A clean static scan does not prove runtime correctness.
+
+Java type ownership also requires manual review: inspect top-level types and exposed nested classes/records/enums, their fields, behavior, callers and contract signatures. Check the actual owner, not just the presence of `service/impl/`; neither checker validates this boundary. Report misplaced types with their responsibility and intended owner. For implementation/refactoring, verify each added or moved type this way; review-only findings do not authorize migration.

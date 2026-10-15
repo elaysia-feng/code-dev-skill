@@ -23,4 +23,6 @@ Read the relevant parts when changing persistence, external integrations or back
 
 ## Verification
 
+For Java/Spring, run the skill's `scripts/check-java-boundaries.py <project-root> --fail-on warning`. It flags direct transaction self-invocation and integration interfaces with no detected production type consumer, including same-domain services using HTTP directly. Confirm actual proxy/wiring paths: reflective registration, generated consumers, overloads and indirect call chains require manual inspection. Static results do not establish atomicity, integration coverage or runtime behavior.
+
 Use relevant behavior checks for the changed boundary: rollback and conflicting writes, timeout/failure paths, repeated delivery or overlapping jobs as applicable. Use isolated resources, and distinguish code/build/import evidence from actual persistence or runtime execution. Do not add unrelated infrastructure merely to satisfy a checklist.

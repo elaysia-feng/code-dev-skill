@@ -122,7 +122,15 @@ private final LikeServiceImpl likeService;
 
 The goal is a stable contract boundary for extension/replacement, testing, AOP/interception, and observability integration.
 
+## MyBatis-Plus (MP) persistence
+
+When mapper-based persistence is selected for a new Spring project, use MyBatis-Plus (MP): entities retain their persistence ownership, `@Mapper` interfaces extend `BaseMapper<Entity>`, and simple CRUD uses the existing MP capabilities. Put genuinely complex SQL in the mapper XML rather than introducing a redundant repository or handwritten CRUD layer. Preserve projects using a different explicitly selected persistence framework.
+
+MP mapper implementations are framework-generated proxies, not missing business implementations. Never create `UserMapperImpl` merely to satisfy the business `interface + impl/` rule, or report a `BaseMapper` interface as unused solely because there is no handwritten implementation. Keep required business interfaces separate from mapper contracts.
+
 ## DTOs
+
+Apply [Java type ownership](project-structure.md#java-type-ownership) before placing any data-bearing type. `service/` and `service/impl/` are not homes for shared DTOs, domain models or enums. Inspect exposed nested records as well as separate files; internal service contracts need not be HTTP request/response types. Private implementation-only temporary tuples may remain nested under the stated exception.
 
 Separate request and response models when the API already uses DTOs:
 
@@ -142,6 +150,8 @@ Do not return persistence entities directly from public controllers. Public cont
 Use Bean Validation (`@NotNull`, `@Size`, custom validators) for request constraints. Do not hand-roll `validate()` methods in service code to re-check what the model layer already enforces.
 
 ## Domain types, constants, and enums
+
+Non-persistent domain values belong to their domain model owner, not automatically to `service/`, `entity/` or an HTTP DTO package. Their normalization, equality and invariant methods do not trigger the business-service interface rule. Fixed domain enums/constants use the domain-owned packages specified in the structure reference; externalized settings remain configuration.
 
 Domain enums are appropriate when they model real finite states or categories:
 

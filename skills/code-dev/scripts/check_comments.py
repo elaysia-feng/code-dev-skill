@@ -27,8 +27,8 @@
     1  存在 ERROR，或 --fail-on warning 时存在 WARNING
     2  没有任何可检查的文件（targets 没匹配到 .java / .py）
 
-ERROR 只出现在两类情况：文件无法解析或无法读取（工具故障），以及 TODO 缺少
-负责人。前者是真正需要停下修的；后者是规范的硬性要求，处理办法是在同一文件内
+ERROR 覆盖文件无法解析或读取、原文含 U+FFFD 替换字符，以及 TODO 缺少
+负责人。替换字符必须恢复原文，故意使用时写 Unicode 转义；TODO 的处理办法是在同一文件内
 把 ``TODO`` 补成 ``TODO(负责人): 说明``，负责人未知时写"待确认"，不要删掉
 待办本身。WARNING 一律需要人工判断，不能证明注释语义正确。
 
@@ -791,6 +791,46 @@ def _is_java_method_decl(match: "re.Match[str]", code_line: str) -> bool:
     return "=" not in head
 
 
+def _is_java_accessor(match, index, code):
+    """仅豁免直接读写对应字段的访问器，不按方法名盲目放行。
+
+    Args:
+        match: 已确认属于 Java 方法声明的匹配。
+        index: 声明行的 0 起始下标。
+        code: 保留行位置、去掉字符串及注释的代码。
+
+    Returns:
+        方法体只直接读写对应 JavaBean 字段且无其他行为时返回 True。
+    """
+    # 1. 完整取得声明和方法体，复杂声明无法确认时不自动豁免。
+    body_range = _find_java_body(code, index)
+    if body_range is None:
+        return False
+    start, end = body_range
+    text = "\n".join(code[index:end + 1])
+    declaration = re.search(r"\b" + re.escape(match.group("name")) + r"\s*\(([^()]*)\)\s*\{([^{}]*)\}", text)
+    if declaration is None:
+        return False
+    # 2. 按 JavaBeans 属性名称确定对应字段，不能豁免访问其他字段的方法。
+    name = match.group("name")
+    params, body = declaration.groups()
+    prefix = "set" if name.startswith("set") else "get" if name.startswith("get") else "is"
+    suffix = name[len(prefix):]
+    if not suffix or not suffix[0].isupper():
+        return False
+    # JavaBeans 的 URL 等首字母缩写不应被改成 uRL。
+    field = suffix if len(suffix) > 1 and suffix[1].isupper() else suffix[0].lower() + suffix[1:]
+    # 3. 仅接受单条字段读取或赋值，不豁免校验、调用或其他业务行为。
+    if prefix in ("get", "is") and not params.strip():
+        if prefix == "is" and (match.group("type") or "").strip() not in ("boolean", "Boolean"):
+            return False
+        return re.fullmatch(r"\s*return\s+(?:this\.)?" + re.escape(field) + r"\s*;\s*", body) is not None
+    parameter = re.fullmatch(r"\s*(?:final\s+)?[\w$.<>?\[\]]+\s+(\w+)\s*", params)
+    if prefix != "set" or parameter is None or (match.group("type") or "").strip() != "void":
+        return False
+    return re.fullmatch(r"\s*this\." + re.escape(field) + r"\s*=\s*" + re.escape(parameter[1]) + r"\s*;\s*", body) is not None
+
+
 def _check_java_method(path: Path, match: "re.Match[str]", index: int,
                        lines: List[str], code: List[str], comment_view: List[str]) -> List[Issue]:
     """校验单个 Java 方法的 Javadoc 与步骤注释。
@@ -813,17 +853,18 @@ def _check_java_method(path: Path, match: "re.Match[str]", index: int,
     issues: List[Issue] = []
     javadoc = _find_javadoc(lines, index)
     public_api = bool(re.search(r"\b(public|protected)\b", match.group("mods")))
-    if javadoc is None and public_api:
+    accessor = _is_java_accessor(match, index, code)
+    if javadoc is None and public_api and not accessor:
         issues.append(Issue(path, lineno, WARNING, "missing-doc",
                             f"public/protected 方法 `{name}` 缺少 Javadoc 文档注释"))
 
     # 2. 有参数 / 有返回值时检查 @param 与 @return
     inherited = javadoc is not None and "{@inheritDoc}" in javadoc
-    if javadoc and not inherited and _java_has_params(code, index, match.end()) and "@param" not in javadoc:
+    if javadoc and not inherited and not accessor and _java_has_params(code, index, match.end()) and "@param" not in javadoc:
         issues.append(Issue(path, lineno, WARNING, "missing-param",
                             f"`{name}` 有参数但 Javadoc 缺少 @param"))
     return_type = (match.group("type") or "").strip()
-    if javadoc and not inherited and return_type and return_type != "void" and "@return" not in javadoc:
+    if javadoc and not inherited and not accessor and return_type and return_type != "void" and "@return" not in javadoc:
         issues.append(Issue(path, lineno, WARNING, "missing-return",
                             f"`{name}` 有返回值但 Javadoc 缺少 @return"))
 
@@ -1056,11 +1097,15 @@ def check_source(path: Path, source: str) -> List[Issue]:
     Returns:
         该文件的问题列表。
     """
+    # 已经丢失原字的替换字符即使可以 UTF-8 解码也必须阻断。
+    encoding_issues = [Issue(path, index, ERROR, "replacement-character",
+                             "发现 U+FFFD 替换字符；请恢复原文，测试字面量请写 Unicode 转义")
+                       for index, line in enumerate(source.splitlines(), 1) if "\ufffd" in line]
     # 按扩展名分发，其他类型文件不检查
     if path.suffix == ".py":
-        return check_python_file(path, source)
+        return encoding_issues + check_python_file(path, source)
     if path.suffix == ".java":
-        return check_java_file(path, source)
+        return encoding_issues + check_java_file(path, source)
     return []
 
 

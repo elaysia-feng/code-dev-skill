@@ -378,9 +378,11 @@ test('更新中途失败时保留旧的完整安装', t => {
     write(fresh, 'package.json', '{"name":"readability-first-coding","version":"9.1.0"}');
     const good = path.join(fresh, 'skills/code-dev/SKILL.md');
     write(fresh, 'skills/code-dev/SKILL.md', FRONTMATTER('code-dev'));
-    // 在暂存目录里放一个符号链接，让 copyDir 在切换前失败
+    // 在暂存目录放目录链接；Windows 的 junction 不要求文件符号链接权限。
     const link = path.join(fresh, 'skills/code-dev/broken-link');
-    fs.symlinkSync(path.join(fresh, 'package.json'), link);
+    const linkedDirectory = path.join(fresh, 'linked-directory');
+    fs.mkdirSync(linkedDirectory);
+    fs.symlinkSync(linkedDirectory, link, process.platform === 'win32' ? 'junction' : 'dir');
     assert.ok(fs.existsSync(good));
   });
 
